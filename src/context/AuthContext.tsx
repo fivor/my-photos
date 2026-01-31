@@ -5,7 +5,7 @@ interface AuthState {
   token: string | null;
   role: 'admin' | 'visitor' | null;
   isAuthenticated: boolean;
-  login: (token: string, role: 'admin' | 'visitor') => void;
+  login: (token: string, role: 'admin' | 'visitor', allowedFolders?: string[]) => void;
   logout: () => void;
 }
 
@@ -24,6 +24,10 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
           logout();
         } else {
           setRole(decoded.role);
+          // If we have allowedFolders in token, sync to localStorage just in case
+          if (decoded.allowedFolders) {
+            localStorage.setItem('allowedFolders', JSON.stringify(decoded.allowedFolders));
+          }
         }
       } catch (e) {
         logout();
@@ -31,14 +35,18 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     }
   }, [token]);
 
-  const login = (newToken: string, newRole: 'admin' | 'visitor') => {
+  const login = (newToken: string, newRole: 'admin' | 'visitor', allowedFolders?: string[]) => {
     localStorage.setItem('token', newToken);
     setToken(newToken);
     setRole(newRole);
+    if (allowedFolders) {
+      localStorage.setItem('allowedFolders', JSON.stringify(allowedFolders));
+    }
   };
 
   const logout = () => {
     localStorage.removeItem('token');
+    localStorage.removeItem('allowedFolders');
     setToken(null);
     setRole(null);
   };

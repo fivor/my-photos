@@ -9,6 +9,7 @@ export function jsonResponse(data: any, status = 200) {
     status,
     headers: {
       'Content-Type': 'application/json',
+      'Cache-Control': 'no-store, max-age=0',
       ...corsHeaders,
     },
   });

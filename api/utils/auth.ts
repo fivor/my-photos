@@ -1,16 +1,19 @@
 import { SignJWT, jwtVerify } from 'jose';
 import { Env } from '../types';
 
-export async function createToken(role: 'admin' | 'visitor', env: Env) {
+export async function createToken(payload: any, env: Env) {
   const secret = new TextEncoder().encode(env.JWT_SECRET || 'dev-secret');
-  return await new SignJWT({ role })
+  // If payload is just a string (backward compatibility), wrap it
+  const jwtPayload = typeof payload === 'string' ? { role: payload } : payload;
+  
+  return await new SignJWT(jwtPayload)
     .setProtectedHeader({ alg: 'HS256' })
     .setIssuedAt()
     .setExpirationTime('7d')
     .sign(secret);
 }
 
-export async function verifyToken(request: Request, env: Env): Promise<{ role: string } | null> {
+export async function verifyToken(request: Request, env: Env): Promise<any | null> {
   const authHeader = request.headers.get('Authorization');
   if (!authHeader || !authHeader.startsWith('Bearer ')) {
     return null;
@@ -20,7 +23,7 @@ export async function verifyToken(request: Request, env: Env): Promise<{ role: s
   
   try {
     const { payload } = await jwtVerify(token, secret);
-    return payload as { role: string };
+    return payload;
   } catch (e) {
     return null;
   }

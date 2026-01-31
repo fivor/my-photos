@@ -1,9 +1,12 @@
+/// <reference types="@cloudflare/workers-types" />
+
 export interface Env {
   BUCKET: R2Bucket;
   ADMIN_PASSWORD?: string;
   VISITOR_PASSWORD?: string;
   JWT_SECRET?: string;
   SITE_TITLE?: string;
+  R2_PUBLIC_DOMAIN?: string;
 }
 
 export interface Photo {
@@ -17,6 +20,8 @@ export interface Photo {
   width?: number;
   height?: number;
   uploadedAt: string;
+  deletedAt?: string;
+  isFavorite?: boolean;
 }
 
 export interface Folder {
@@ -26,9 +31,21 @@ export interface Folder {
   photoCount?: number;
 }
 
+export interface Visitor {
+  id: string;
+  name: string;
+  password: string;
+  allowedFolders: string[];
+}
+
 export interface Metadata {
   version: string;
   lastUpdated: string;
   photos: Photo[];
   folders: Folder[];
+  visitors?: Visitor[];
+  config?: {
+    siteTitle?: string;
+    favicon?: string;
+  };
 }

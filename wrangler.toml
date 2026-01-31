@@ -2,6 +2,11 @@ name = "photo-gallery-worker"
 main = "api/index.ts"
 compatibility_date = "2024-01-01"
 
+routes = [
+  { pattern = "api.fivor.de", custom_domain = true },
+  { pattern = "i.fivor.de/api/*", zone_name = "fivor.de" }
+]
+
 [[r2_buckets]]
 binding = "BUCKET"
 bucket_name = "photo-gallery"
@@ -9,4 +14,5 @@ preview_bucket_name = "photo-gallery-preview"
 
 [vars]
 SITE_TITLE = "My Photo Gallery"
+R2_PUBLIC_DOMAIN = "https://im.fivor.de"
 # Note: ADMIN_PASSWORD, VISITOR_PASSWORD, and JWT_SECRET should be set as secrets in Cloudflare dashboard

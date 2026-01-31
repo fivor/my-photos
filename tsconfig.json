@@ -27,9 +27,11 @@
       "@/*": [
         "./src/*"
       ]
-    }
+    },
+    "types": ["@cloudflare/workers-types", "vite/client"]
   },
   "include": [
-    "src"
+    "src",
+    "api"
   ]
 }
