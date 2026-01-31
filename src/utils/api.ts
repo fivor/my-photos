@@ -1,6 +1,6 @@
 // Use relative path to leverage Cloudflare Worker Routes on the same domain
 // This avoids CORS and DNS issues if the domain is proxied
-export const API_BASE = import.meta.env.DEV ? 'https://api.fivor.de/api' : '/api';
+export const API_BASE = import.meta.env.VITE_API_BASE || (import.meta.env.DEV ? 'https://api.fivor.de/api' : '/api');
 
 export async function apiRequest<T = any>(endpoint: string, options: RequestInit = {}): Promise<T> {
   const token = localStorage.getItem('token');
