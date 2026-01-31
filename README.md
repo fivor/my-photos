@@ -1,114 +1,130 @@
-# Photo — Cloudflare R2 个人相册
+# My Photos (Serverless Photo Gallery)
 
-一个基于 React + TypeScript 的单页应用，配套 Cloudflare Workers 和 R2 的无服务器照片管理系统。适合作为个人相册、家庭相册或小型图片展示站点。
+一个基于 Cloudflare R2 + Workers + React 构建的现代化、高性能、Serverless 个人相册系统。
 
-## 亮点
+## ✨ 核心特性
 
-- 支持拖拽与批量上传、相册/文件夹管理。
-- 时间线和日历视图，按日期组织照片并快速跳转。
-- 简洁的图片查看器，支持放大/全屏展示。
-- 双重访问控制：管理员（上传/管理）和访客（只读）。
-- 无服务器架构：使用 Cloudflare Workers 做 API 与上传代理，使用 R2 存储图片。
+*   **Serverless 架构**：后端完全运行在 Cloudflare Workers 上，无需服务器维护，成本极低。
+*   **全球加速**：利用 Cloudflare R2 存储照片，配合 CDN 全球边缘缓存，加载速度飞快。
+*   **现代化 UI**：基于 React + Tailwind CSS 构建，支持深色/浅色模式，响应式设计适配移动端。
+*   **多格式支持**：支持 JPG, PNG, WEBP, GIF, AVIF, TIFF, BMP 等多种图片格式上传与预览。
+*   **智能压缩**：前端/后端双重压缩优化，自动生成 WebP 缩略图，节省流量并提升速度。
+*   **相册管理**：支持创建多级相册、拖拽上传、批量管理（移动、删除、恢复）。
+*   **访客系统**：支持生成专属访客账号，可精确控制每个访客能看到的特定相册。
+*   **隐私保护**：所有 API 请求均经过 JWT 鉴权，支持回收站机制防止误删。
 
-## 技术栈
+## 🛠️ 技术栈
 
-- 前端：React, TypeScript, Vite, Tailwind CSS
-- 后端：Cloudflare Workers (TypeScript)
-- 存储：Cloudflare R2
-- 常用库：`react-photo-view`, `react-dropzone`, `date-fns`, `lucide-react`, `zustand`
+**前端 (Frontend):**
+*   **框架**: React 18 + TypeScript + Vite
+*   **样式**: Tailwind CSS + Lucide React (图标)
+*   **状态管理**: Zustand
+*   **路由**: React Router v7
+*   **组件库**: React Photo View (灯箱), React Dropzone (上传)
+*   **部署**: Vercel (推荐) / GitHub Pages / Cloudflare Pages
 
-## 快速开始（本地开发）
+**后端 (Backend):**
+*   **运行时**: Cloudflare Workers
+*   **存储**: Cloudflare R2 (对象存储)
+*   **鉴权**: JWT (JSON Web Tokens)
+*   **图像处理**: @jsquash (WebAssembly 图像压缩/解码)
 
-1. 安装依赖：
+## 🚀 快速开始
 
-```bash
-npm install
+### 1. 前置准备
+*   一个 [Cloudflare](https://www.cloudflare.com/) 账号。
+*   一个域名（托管在 Cloudflare 上以获得最佳体验）。
+*   Node.js 环境 (v18+)。
+
+### 2. 后端部署 (Cloudflare Workers)
+
+1.  **安装 Wrangler CLI**:
+    ```bash
+    npm install -g wrangler
+    ```
+
+2.  **配置 R2 存储桶**:
+    *   在 Cloudflare 后台创建一个 R2 Bucket，命名为 `photo-gallery`。
+    *   在 Bucket 设置中绑定自定义域名（如 `im.example.com`），并开启 "Public Access"（或者配置 Access 策略）。
+    *   **重要**: 在 Cloudflare 域名 DNS 设置中，为该图片域名配置 Page Rule: `Cache Level: Cache Everything`，以开启 CDN 缓存。
+
+3.  **配置 Wrangler**:
+    修改 `wrangler.toml`:
+    ```toml
+    name = "photo-gallery-worker"
+    # 修改为你的图片域名
+    [vars]
+    R2_PUBLIC_DOMAIN = "https://im.example.com" 
+    ```
+
+4.  **设置密钥**:
+    ```bash
+    wrangler secret put ADMIN_PASSWORD  # 设置管理员密码
+    wrangler secret put JWT_SECRET      # 设置 JWT 签名密钥（随机字符串）
+    wrangler secret put VISITOR_PASSWORD # 设置全局访客密码（可选）
+    ```
+
+5.  **部署后端**:
+    ```bash
+    npm run deploy:worker
+    ```
+    记下部署后的 Worker URL（如 `https://photo-api.yourname.workers.dev`）。
+
+### 3. 前端部署 (Vercel)
+
+1.  **Fork 本仓库**。
+2.  **在 Vercel 中导入项目**。
+3.  **配置环境变量**:
+    *   `VITE_API_BASE`: 填入你的 Worker URL (例如 `https://photo-api.yourname.workers.dev/api`，注意带 `/api` 后缀)。
+4.  **部署并绑定域名**:
+    *   部署完成后，绑定你的前端域名（如 `a.example.com`）。
+    *   由于 Vercel 自带全球 CDN，建议在 `vercel.json` 中保持默认缓存策略。
+
+## ⚙️ 环境变量说明
+
+| 变量名 | 类型 | 说明 |
+| :--- | :--- | :--- |
+| `VITE_API_BASE` | Frontend Env | 后端 API 地址，用于前端请求 |
+| `R2_PUBLIC_DOMAIN` | Backend Var | R2 存储桶绑定的公开域名 |
+| `ADMIN_PASSWORD` | Backend Secret | 管理员登录密码 |
+| `JWT_SECRET` | Backend Secret | 用于生成 Token 的密钥 |
+
+## 📂 目录结构
+
+```
+.
+├── api/                 # Cloudflare Worker 后端代码
+│   ├── index.ts        # 入口文件
+│   └── utils/          # 后端工具函数 (Auth, Storage, Response)
+├── src/                 # React 前端代码
+│   ├── components/     # UI 组件 (Sidebar, Timeline, etc.)
+│   ├── pages/          # 页面组件 (Gallery, Upload, Login)
+│   ├── context/        # 全局状态上下文
+│   ├── hooks/          # 自定义 Hooks
+│   └── utils/          # 前端工具函数
+├── vercel.json         # Vercel 部署配置
+├── wrangler.toml       # Cloudflare Worker 配置
+└── vite.config.ts      # Vite 构建配置
 ```
 
-2. 运行开发服务器：
+## 📝 开发指南
 
-```bash
-npm run dev
-```
+1.  **安装依赖**:
+    ```bash
+    npm install
+    ```
 
-3. 在 `src/utils/api.ts` 中确认 `API_BASE`（指向你的 Worker URL，开发模式下可为相对路径）。
+2.  **本地开发**:
+    ```bash
+    npm run dev
+    ```
+    *注意：本地开发默认连接生产环境的 API（如果 `.env` 未配置本地 Mock）。*
 
-## Cloudflare 部署（Worker + R2）
+3.  **构建**:
+    ```bash
+    npm run build
+    ```
 
-1. 登录 Wrangler：
+## 📄 License
 
-```bash
-wrangler login
-```
-
-2. 在 Cloudflare 仪表盘创建一个 R2 Bucket（例如 `photo-gallery`），并在 `wrangler.toml` 中绑定为 `BUCKET`。
-
-3. 设置密钥（不要提交到仓库）：
-
-```bash
-wrangler secret put ADMIN_PASSWORD
-wrangler secret put VISITOR_PASSWORD
-wrangler secret put JWT_SECRET
-```
-
-4. 部署 Worker：
-
-```bash
-npm run deploy:worker
-```
-
-注意：`API` 路径默认在 Worker 下挂载为 `/api/*`。如果你使用自定义域或提供了一个 `R2_PUBLIC_DOMAIN`，请在 Worker 的 `env` 配置或 Cloudflare 中设置对应变量。
-
-## 构建与 GitHub Pages 部署
-
-1. 构建静态文件：
-
-```bash
-npm run build
-```
-
-2. 使用 `gh-pages` 将 `dist` 发布到 `gh-pages` 分支，或通过你自己的静态托管服务部署。
-
-## 项目目录（简要）
-
-- `src/` — 前端代码
-  - `components/` — UI 组件（时间线、日历、查看器）
-  - `pages/` — 页面（`Gallery`, `Upload`, `Settings`, `Login`）
-  - `context/` — `AuthContext`, `ConfigContext`
-  - `utils/` — `api.ts`, `image.ts` 等
-- `api/` — Cloudflare Worker 代码（`index.ts` 为主入口，包含认证、数据与上传代理）
-
-## 主要 API 端点（Worker）
-
-- `POST /api/auth/login` — 登录，返回 JWT（管理员或访客，基于 secrets 验证密码）
-- `GET /api/public-config` — 获取公开的站点配置（站点标题、favicon）
-- `GET /api/data` — 获取元数据（photos、folders、config），需要授权
-- `POST /api/data` — 管理数据（上传后更新、移动、删除、更新配置），仅限管理员
-- `POST /api/upload-url` — 生成上传用的临时信息（Worker 返回代理上载地址与 key）
-- `PUT /api/upload-file?key=...` — Worker 接收上传流并写入 R2（由前端直接 PUT）
-- `GET /api/proxy-image?url=...` — 简单的图片代理，用于跨域或 HEIC 预览
-
-## 上传流程（概述）
-
-1. 前端请求 `POST /api/upload-url` 并获得 `uploadUrl`（本项目用 Worker 作为上传代理）。
-2. 前端对 `uploadUrl` 发起 `PUT`，将图片流上传到 `/api/upload-file?key=...`。
-3. Worker 将数据写入 R2（`env.BUCKET.put(key, body, { httpMetadata })`）。
-4. 上传成功后，前端会通过 `POST /api/data`（`update_photos`）将元数据写入 Worker 管理的 metadata 存储。
-
-## 安全与注意事项
-
-- 不要将任何 secrets（管理员密码、JWT_SECRET、wrangler.toml 中敏感字段）提交到仓库。
-- 使用 `wrangler secret put` 管理运行时密钥。
-- 若需要公开访问图片，请确保 R2 或 CDN 的访问策略配置正确，以免意外泄露未授权资源。
-
-## 本地测试建议
-
-- 在开发时可以直接用 `npm run dev` 运行前端，Worker 端可以使用 `wrangler dev` 做本地测试代理。
-
-## 贡献
-
-欢迎提交 issue 或 PR。请确保不包含敏感信息。
-
-## 许可证
-
-MIT
+MIT License
