@@ -12,6 +12,12 @@ binding = "BUCKET"
 bucket_name = "photo-gallery"
 preview_bucket_name = "photo-gallery-preview"
 
+[[d1_databases]]
+binding = "DB"
+database_name = "photo-gallery-db"
+database_id = "UPDATE_WITH_YOUR_D1_DATABASE_ID"
+preview_database_id = "DB"
+
 [vars]
 SITE_TITLE = "My Photo Gallery"
 R2_PUBLIC_DOMAIN = "https://im.fivor.de"

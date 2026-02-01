@@ -2,6 +2,7 @@
 
 export interface Env {
   BUCKET: R2Bucket;
+  DB: D1Database;
   ADMIN_PASSWORD?: string;
   VISITOR_PASSWORD?: string;
   JWT_SECRET?: string;

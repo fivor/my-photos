@@ -2,6 +2,7 @@ import { Env } from './types';
 import { handleOptions, corsHeaders, jsonResponse, errorResponse } from './utils/response';
 import { createToken, verifyToken } from './utils/auth';
 import { getMetadata, saveMetadata } from './utils/storage';
+import { migrateJsonToD1 } from './utils/migration';
 import { decode as decodeJpeg, encode as encodeJpeg } from '@jsquash/jpeg';
 import { decode as decodeWebp, encode as encodeWebp } from '@jsquash/webp';
 import resize from '@jsquash/resize';
@@ -173,6 +174,12 @@ export default {
        }
        // Default fallback
        return jsonResponse(user);
+    }
+
+    // Admin Migration Route
+    if (url.pathname === '/api/admin/migrate-to-d1' && request.method === 'POST') {
+       if (user.role !== 'admin') return errorResponse('Forbidden', 403);
+       return jsonResponse(await migrateJsonToD1(env));
     }
 
     // Data Route
