@@ -3,11 +3,15 @@
 export interface Env {
   BUCKET: R2Bucket;
   DB: D1Database;
+  AI: any; // Cloudflare Workers AI
+  VECTORIZE: VectorizeIndex;
+  ASSETS: Fetcher;
   ADMIN_PASSWORD?: string;
   VISITOR_PASSWORD?: string;
   JWT_SECRET?: string;
   SITE_TITLE?: string;
   R2_PUBLIC_DOMAIN?: string;
+  RESEND_API_KEY?: string;
 }
 
 export interface Photo {
@@ -23,6 +27,17 @@ export interface Photo {
   uploadedAt: string;
   deletedAt?: string;
   isFavorite?: boolean;
+  // New fields
+  blurhash?: string;
+  location?: {
+    lat: number;
+    lng: number;
+    name?: string;
+  };
+  aiTags?: string[];
+  aiDescription?: string;
+  hasOriginal?: boolean;
+  originalSize?: number;
 }
 
 export interface Folder {

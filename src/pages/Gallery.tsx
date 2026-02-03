@@ -2,7 +2,7 @@ import React, { useEffect, useState, useMemo } from 'react';
 import { useAuth } from '../context/AuthContext';
 import { useConfig } from '../context/ConfigContext';
 import { useTheme } from '../hooks/useTheme';
-import { LogOut, Settings as SettingsIcon, Upload as UploadIcon, Folder as FolderIcon, Sun, Moon, CheckSquare, Trash2, FolderInput, X, Search, ChevronRight, ChevronDown, Menu, Heart, RotateCcw, Clock, Download } from 'lucide-react';
+import { LogOut, Settings as SettingsIcon, Upload as UploadIcon, Folder as FolderIcon, Sun, Moon, CheckSquare, Trash2, FolderInput, X, Search, ChevronRight, ChevronDown, Menu, Heart, RotateCcw, Clock, Download, Map, User } from 'lucide-react';
 import { Link, useParams, useLocation, useNavigate } from 'react-router-dom';
 import { apiRequest } from '../utils/api';
 import { Photo, Folder, Metadata } from '../types';
@@ -12,6 +12,8 @@ import { format } from 'date-fns';
 import JSZip from 'jszip';
 import { saveAs } from 'file-saver';
 import Sidebar from '../components/Sidebar';
+import MapView from '../components/MapView';
+import Memories from '../components/Memories';
 
 export default function Gallery() {
   const { logout, role, token: authToken } = useAuth();
@@ -20,23 +22,26 @@ export default function Gallery() {
   const { id: folderId } = useParams();
   const location = useLocation();
   const navigate = useNavigate();
-  const [photos, setPhotos] = useState<Photo[]>([]);
-  const [folders, setFolders] = useState<Folder[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState('');
   
   // View Mode derived from location
   const viewMode = useMemo(() => {
     if (location.pathname === '/favorites') return 'favorites';
     if (location.pathname === '/trash') return 'trash';
+    if (location.pathname === '/map') return 'map';
     return 'normal';
   }, [location.pathname]);
 
+  const [photos, setPhotos] = useState<Photo[]>([]);
+  const [folders, setFolders] = useState<Folder[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState('');
+  
   // Sidebar State
   const [sidebarOpen, setSidebarOpen] = useState(false); // Mobile sidebar
   const [searchQuery, setSearchQuery] = useState('');
   const [expandedFolders, setExpandedFolders] = useState(true);
   const [isLightboxOpen, setIsLightboxOpen] = useState(false);
+  const [targetPhotoId, setTargetPhotoId] = useState<string | null>(null);
 
   // Auto-close sidebar on lightbox open (mobile)
   useEffect(() => {
@@ -48,9 +53,6 @@ export default function Gallery() {
   // Data State
   const [allPhotos, setAllPhotos] = useState<Photo[]>([]);
 
-  // Pagination State
-  const [visibleCount, setVisibleCount] = useState(50);
-  
   // Batch Selection State
   const [isSelectionMode, setIsSelectionMode] = useState(false);
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
@@ -62,34 +64,25 @@ export default function Gallery() {
     onConfirm: () => void;
   }>({ isOpen: false, message: '', onConfirm: () => {} });
 
+  const [isSearchExpanded, setIsSearchExpanded] = useState(false);
+  const [userMenuOpen, setUserMenuOpen] = useState(false);
+
   useEffect(() => {
     fetchData();
   }, [folderId, location.key, viewMode]);
 
-  const fetchData = async () => {
+  const fetchData = async (silent = false) => {
     try {
-      setLoading(true);
+      if (!silent) {
+        setLoading(true);
+        // Force reset lightbox state when reloading data to prevent UI sync issues
+        setIsLightboxOpen(false);
+      }
       const data: Metadata = await apiRequest('/data');
       
-      // Store all photos for counts
+      // Store all photos
       if (data && Array.isArray(data.photos)) {
         setAllPhotos(data.photos);
-      }
-
-      let filteredPhotos = [];
-      
-      if (viewMode === 'trash') {
-        // Show deleted photos
-        filteredPhotos = data.photos.filter(p => p.deletedAt);
-      } else if (viewMode === 'favorites') {
-        // Show favorites (and not deleted)
-        filteredPhotos = data.photos.filter(p => !p.deletedAt && p.isFavorite);
-      } else {
-        // Normal view: not deleted
-        filteredPhotos = data.photos.filter(p => !p.deletedAt);
-        if (folderId) {
-          filteredPhotos = filteredPhotos.filter(p => p.folder === folderId);
-        }
       }
       
       // Sort folders by pinyin
@@ -97,7 +90,6 @@ export default function Gallery() {
         a.name.localeCompare(b.name, 'zh-Hans-CN', { sensitivity: 'accent' })
       );
 
-      setPhotos(filteredPhotos);
       setFolders(sortedFolders);
     } catch (err: any) {
       setError(err.message || 'Failed to load photos');
@@ -106,23 +98,140 @@ export default function Gallery() {
     }
   };
 
+  // Filter Photos logic
+  useEffect(() => {
+    let res = allPhotos;
+
+    // 1. View Mode Filter
+    if (viewMode === 'trash') {
+       res = res.filter(p => p.deletedAt);
+    } else if (viewMode === 'favorites') {
+       res = res.filter(p => !p.deletedAt && p.isFavorite);
+    } else {
+       res = res.filter(p => !p.deletedAt);
+    }
+
+    // 2. Search & Folder Filter
+    if (searchQuery) {
+       // Check if it's a semantic search (e.g. starts with "semantic:" or just handle standard)
+       // For now, we mix both. We can add a toggle in UI later.
+       // OR we can try to fetch from /api/search first if no local match?
+       // The current implementation is PURE LOCAL filtering.
+       // To enable vector search, we need to call API.
+       
+       // BUT, to avoid too many API calls while typing, we should debounce or use "Enter" to search.
+       // For this "pair programming" task, I will keep the local search for now, 
+       // AND add a "Search with AI" logic if local results are few or user presses specific key?
+       // Let's implement a simple integration:
+       // The Sidebar input updates `searchQuery`. 
+       // We can check if `searchQuery` matches any photo.
+       
+       const lowerQ = searchQuery.toLowerCase();
+       res = res.filter(p => {
+          const dateStr = p.date || p.uploadedAt;
+          const tags = p.aiTags || [];
+          const tagMatch = tags.some((t: string) => t.toLowerCase().includes(lowerQ));
+          
+          return (
+            p.description?.toLowerCase().includes(lowerQ) ||
+            p.location?.name?.toLowerCase().includes(lowerQ) ||
+            tagMatch ||
+            dateStr.includes(lowerQ)
+          );
+       });
+    } else {
+       // Only apply folder filter if NO search
+       if (folderId && viewMode === 'normal') {
+          res = res.filter(p => p.folder === folderId);
+       }
+    }
+    
+    setPhotos(res);
+  }, [allPhotos, viewMode, folderId, searchQuery]);
+
+  const [isSearching, setIsSearching] = useState(false);
+
+  // Vector Search Effect
+  useEffect(() => {
+    // Only search if query is long enough and stable
+    if (!searchQuery || searchQuery.length < 2) {
+        setIsSearching(false);
+        // Do NOT reset photos here. The first useEffect handles the "no search" case correctly
+        // by applying folder/viewMode filters.
+        return;
+    }
+    
+    setIsSearching(true);
+    const timer = setTimeout(async () => {
+        try {
+            console.log('Searching for:', searchQuery);
+            const res = await apiRequest<{ results: { id: string, score: number }[], debug: any }>('/search', {
+                method: 'POST',
+                body: JSON.stringify({ query: searchQuery })
+            });
+            console.log('Search results:', res);
+            
+            if (res.results && res.results.length > 0) {
+                setPhotos(prev => {
+                    // Filter matches with a reasonable threshold (e.g. 0.45)
+                    // The BGE model cosine similarity usually ranges 0.3-0.8 for relevant stuff.
+                    // User requested > 60%
+                    const threshold = 0.60; 
+                    const validMatches = res.results.filter(r => r.score > threshold);
+                    
+                    if (validMatches.length === 0) {
+                        // If AI found nothing relevant, but we have local results (from filter above),
+                        // we should keep local results.
+                        // If we are here, `photos` (prev) already contains local matches because of the first useEffect.
+                        return prev; 
+                    }
+                    
+                    // We want to PRIORITIZE semantic matches, but keep existing local matches if any?
+                    // Actually, usually user wants to see what they searched for.
+                    // If local filter found nothing, we show semantic.
+                    // If local filter found something (e.g. "bus" tag), we should MERGE.
+                    
+                    const newPhotos: Photo[] = [];
+                    
+                    // 1. Add semantic matches (sorted by score)
+                    validMatches.forEach(match => {
+                        const p = allPhotos.find(photo => photo.id === match.id);
+                        if (p && !p.deletedAt) { 
+                           // Clone and attach score
+                           newPhotos.push({ ...p, _score: match.score });
+                        }
+                    });
+                    
+                    // 2. Merge with existing local results (avoid duplicates)
+                    const existingIds = new Set(newPhotos.map(p => p.id));
+                    const currentLocalResults = prev;
+                    
+                    currentLocalResults.forEach(p => {
+                        if (!existingIds.has(p.id)) {
+                            newPhotos.push(p);
+                        }
+                    });
+                    
+                    return newPhotos;
+                });
+            }
+        } catch (e) {
+            console.error("Vector search error", e);
+        } finally {
+            setIsSearching(false);
+        }
+    }, 800); // 800ms debounce
+    
+    return () => clearTimeout(timer);
+  }, [searchQuery, allPhotos]); // Dependency on allPhotos ensures we can look up IDs
+
   // Counts derived from allPhotos
   const totalPhotosCount = useMemo(() => allPhotos.filter(p => !p.deletedAt).length, [allPhotos]);
   const favoritesCount = useMemo(() => allPhotos.filter(p => !p.deletedAt && p.isFavorite).length, [allPhotos]);
   const trashCount = useMemo(() => allPhotos.filter(p => p.deletedAt).length, [allPhotos]);
 
-  // Filtered folders based on search
-  const filteredFolders = useMemo(() => {
-    if (!searchQuery) return folders;
-    return folders.filter(f => f.name.toLowerCase().includes(searchQuery.toLowerCase()));
-  }, [folders, searchQuery]);
-
-  // Paginated photos
-  const displayedPhotos = useMemo(() => {
-    return photos.slice(0, visibleCount);
-  }, [photos, visibleCount]);
-
-  const hasMore = visibleCount < photos.length;
+  // Filtered folders based on search (for Sidebar only usually)
+  // We keep `folders` as all folders.
 
   const toggleSelectionMode = () => {
     setIsSelectionMode(!isSelectionMode);
@@ -140,46 +249,68 @@ export default function Gallery() {
   };
 
   const handleToggleFavorite = async (id: string) => {
-    // Check if user is logged in
     if (!authToken) {
-      // Redirect to login or show modal
       if (confirm('收藏功能需要登录，是否前往登录？')) {
         navigate('/login');
       }
       return;
     }
 
-    // Optimistic update first for better UX
+    // Optimistic update
     const photo = photos.find(p => p.id === id);
     const newIsFavorite = photo ? !photo.isFavorite : true;
 
-    // Update current view
-    setPhotos(prev => prev.map(p => 
-      p.id === id ? { ...p, isFavorite: newIsFavorite } : p
-    ));
-    // Update global store for counts
-    setAllPhotos(prev => prev.map(p => 
-      p.id === id ? { ...p, isFavorite: newIsFavorite } : p
-    ));
+    // Update local state (both photos and allPhotos)
+    const updateList = (list: Photo[]) => list.map(p => p.id === id ? { ...p, isFavorite: newIsFavorite } : p);
+    setPhotos(prev => updateList(prev));
+    setAllPhotos(prev => updateList(prev));
 
     try {
       await apiRequest('/data', {
         method: 'POST',
         body: JSON.stringify({ 
-          action: 'update_photos', 
-          data: { id, isFavorite: newIsFavorite } 
+          action: 'toggle_favorite', 
+          data: { id } 
         })
       });
     } catch (e) {
       console.error('Failed to toggle favorite', e);
-      // Revert optimistic update
-      setPhotos(prev => prev.map(p => 
-        p.id === id ? { ...p, isFavorite: !newIsFavorite } : p
-      ));
-      // Revert global store
-      setAllPhotos(prev => prev.map(p => 
-        p.id === id ? { ...p, isFavorite: !newIsFavorite } : p
-      ));
+      // Revert
+      const revertList = (list: Photo[]) => list.map(p => p.id === id ? { ...p, isFavorite: !newIsFavorite } : p);
+      setPhotos(prev => revertList(prev));
+      setAllPhotos(prev => revertList(prev));
+    }
+  };
+
+  const handleUpdatePhotoDetail = async (id: string, updates: Partial<Photo>) => {
+    // Optimistic Update
+    const updateList = (list: Photo[]) => list.map(p => p.id === id ? { ...p, ...updates } : p);
+    setPhotos(prev => updateList(prev));
+    setAllPhotos(prev => updateList(prev));
+
+    try {
+      // Fetch full object first (since we need to send full object to updatePhotoInD1 currently, 
+      // or we can just send the ID and updates if we adjust backend logic. 
+      // But update_photos action expects a photo object.
+      // Let's check `api/index.ts`. It calls `updatePhotoInD1(env, photo)`.
+      // `updatePhotoInD1` updates ALL fields. So we MUST merge with existing.
+      const currentPhoto = photos.find(p => p.id === id);
+      if (!currentPhoto) return;
+      
+      const newPhoto = { ...currentPhoto, ...updates };
+
+      await apiRequest('/data', {
+        method: 'POST',
+        body: JSON.stringify({ 
+          action: 'update_photos', 
+          data: newPhoto
+        })
+      });
+    } catch (e) {
+      console.error('Failed to update photo details', e);
+      // Revert is complex without keeping previous state history, 
+      // but for simple text edits, we can probably just ignore or refetch.
+      await fetchData(true); // Silent refetch to restore truth
     }
   };
 
@@ -302,12 +433,10 @@ export default function Gallery() {
       const zip = new JSZip();
       const selectedPhotos = photos.filter(p => selectedIds.has(p.id));
       
-      // Fetch all images
       const promises = selectedPhotos.map(async (photo) => {
         try {
           const response = await fetch(photo.url);
           const blob = await response.blob();
-          // Use original filename or generate one
           const filename = photo.url.split('/').pop() || `photo-${photo.id}.jpg`;
           zip.file(filename, blob);
         } catch (err) {
@@ -395,12 +524,8 @@ export default function Gallery() {
   // Keyboard Shortcuts
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
-      // Ignore if typing in input
-      if (e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement) {
-        return;
-      }
+      if (e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement) return;
 
-      // Esc: Exit selection mode
       if (e.key === 'Escape') {
         if (isSelectionMode) {
           setIsSelectionMode(false);
@@ -408,16 +533,13 @@ export default function Gallery() {
         }
       }
 
-      // Cmd/Ctrl + A: Select All
       if ((e.metaKey || e.ctrlKey) && e.key === 'a') {
         e.preventDefault();
         if (!isSelectionMode) setIsSelectionMode(true);
-        // Select all currently displayed photos
         const allIds = new Set(photos.map(p => p.id));
         setSelectedIds(allIds);
       }
 
-      // F: Toggle Favorite (only if 1 item selected)
       if (e.key.toLowerCase() === 'f') {
         if (selectedIds.size === 1) {
           const id = Array.from(selectedIds)[0];
@@ -425,7 +547,6 @@ export default function Gallery() {
         }
       }
 
-      // Delete/Backspace: Batch Delete
       if (e.key === 'Delete' || e.key === 'Backspace') {
         if (selectedIds.size > 0) {
           handleBatchDelete();
@@ -440,7 +561,7 @@ export default function Gallery() {
   return (
     <div className="h-screen bg-white dark:bg-gray-900 text-gray-900 dark:text-white flex flex-col transition-colors duration-200 overflow-hidden">
       {/* Top Navigation Bar */}
-      <nav className="border-b border-gray-200 dark:border-gray-800 bg-white dark:bg-gray-900 z-20 flex-shrink-0 relative">
+      <nav className="border-b border-gray-200 dark:border-gray-800 bg-white dark:bg-gray-900 z-50 flex-shrink-0 relative">
         <div className="max-w-full px-4 h-14 flex justify-between items-center">
           <div className="flex items-center gap-4">
             <button 
@@ -474,45 +595,142 @@ export default function Gallery() {
           </div>
           
           <div className="flex items-center gap-2">
-            <button
-              onClick={toggleTheme}
-              className="p-2 hover:bg-gray-100 dark:hover:bg-gray-800 rounded-full text-gray-600 dark:text-gray-400 transition-colors"
-            >
-              {theme === 'dark' ? <Sun size={18} /> : <Moon size={18} />}
-            </button>
-            
-            {!role && (
-              <Link to="/login" className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-sm font-medium transition-colors">
-                登录
+             {/* Map Toggle - REMOVED (Moved to Sidebar) */}
+
+            {/* Search Bar */}
+            <div className={`flex items-center transition-all duration-300 mr-1 ${isSearchExpanded ? 'w-40 sm:w-64' : 'w-10'}`}>
+               {isSearchExpanded ? (
+                  <div className="relative w-full flex items-center">
+                    <input 
+                      type="text"
+                      value={searchQuery}
+                      onChange={(e) => setSearchQuery(e.target.value)}
+                      placeholder="Search..."
+                      className="w-full bg-gray-100 dark:bg-gray-800 border-none rounded-full py-1.5 pl-3 pr-8 text-sm focus:ring-2 focus:ring-blue-500 outline-none transition-colors dark:text-white"
+                      autoFocus
+                      onBlur={() => !searchQuery && setIsSearchExpanded(false)}
+                    />
+                    <button 
+                      onMouseDown={(e) => { e.preventDefault(); setSearchQuery(''); setIsSearchExpanded(false); }}
+                      className="absolute right-2 text-gray-500 hover:text-gray-700 dark:text-gray-400"
+                    >
+                      {isSearching ? (
+                        <div className="animate-spin h-3 w-3 border-b-2 border-blue-500 rounded-full"></div>
+                      ) : (
+                        <X size={14} />
+                      )}
+                    </button>
+                  </div>
+               ) : (
+                  <button 
+                    onClick={() => setIsSearchExpanded(true)}
+                    className="p-2 hover:bg-gray-100 dark:hover:bg-gray-800 rounded-full text-gray-600 dark:text-gray-400 transition-colors"
+                    title="Search"
+                  >
+                    <Search size={18} />
+                  </button>
+               )}
+            </div>
+
+            {/* Upload Button */}
+            {(role === 'admin' || role === 'visitor') && (
+              <Link to="/upload" className="hidden sm:flex items-center gap-2 px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg transition-colors shadow-sm">
+                <UploadIcon size={18} />
+                <span className="font-medium">上传</span>
               </Link>
             )}
-
-            {/* Visitor & Admin Upload Button */}
+            
+            {/* Mobile Upload Icon (if needed, but user said "Upload Button" should be big, let's keep text on desktop) */}
             {(role === 'admin' || role === 'visitor') && (
-              <Link to="/upload" className="p-2 hover:bg-gray-100 dark:hover:bg-gray-800 rounded-full text-gray-600 dark:text-gray-400 transition-colors">
+              <Link to="/upload" className="sm:hidden p-2 hover:bg-gray-100 dark:hover:bg-gray-800 rounded-full text-gray-600 dark:text-gray-400 transition-colors">
                 <UploadIcon size={18} />
               </Link>
             )}
 
-            {role === 'admin' && (
-              <>
-                <button
-                  onClick={toggleSelectionMode}
-                  className={`p-2 rounded-full transition-colors ${isSelectionMode ? 'bg-blue-100 text-blue-600 dark:bg-blue-900/30 dark:text-blue-400' : 'hover:bg-gray-100 dark:hover:bg-gray-800 text-gray-600 dark:text-gray-400'}`}
-                  title="批量管理"
+            {/* User Menu */}
+            <div className="relative z-[9999]">
+                <button 
+                  onClick={() => setUserMenuOpen(!userMenuOpen)}
+                  className="flex items-center gap-2 p-2 hover:bg-gray-100 dark:hover:bg-gray-800 rounded-full transition-colors"
                 >
-                  <CheckSquare size={18} />
+                  <div className="w-8 h-8 rounded-full bg-gray-200 dark:bg-gray-700 flex items-center justify-center text-gray-600 dark:text-gray-300 overflow-hidden">
+                     {/* Use User icon or Avatar */}
+                     <User size={20} />
+                  </div>
                 </button>
-                
-                <Link to="/settings" className="p-2 hover:bg-gray-100 dark:hover:bg-gray-800 rounded-full text-gray-600 dark:text-gray-400 transition-colors">
-                  <SettingsIcon size={18} />
-                </Link>
-              </>
-            )}
-            
-            <button onClick={handleLogout} className="p-2 hover:bg-gray-100 dark:hover:bg-gray-800 rounded-full text-gray-600 dark:text-gray-400 transition-colors">
-              <LogOut size={18} />
-            </button>
+
+                {userMenuOpen && (
+                    <>
+                      {/* Backdrop to close */}
+                      <div className="fixed inset-0 z-[9998]" onClick={() => setUserMenuOpen(false)}></div>
+                      
+                      <div className="absolute right-0 top-full mt-2 w-48 bg-white dark:bg-gray-800 rounded-lg shadow-xl border border-gray-200 dark:border-gray-700 py-1 z-[9999] animate-fade-in-up">
+                          {/* Role Header */}
+                          {role && (
+                            <div className="px-4 py-2 border-b border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-800/50">
+                                <p className="text-xs font-bold text-gray-500 dark:text-gray-400 uppercase tracking-wider">
+                                   {role === 'admin' ? '管理员' : '访客'}
+                                </p>
+                            </div>
+                          )}
+
+                          {/* Theme Toggle */}
+                          <button 
+                             onClick={() => { toggleTheme(); setUserMenuOpen(false); }}
+                             className="w-full text-left px-4 py-2.5 text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 flex items-center gap-3 transition-colors"
+                          >
+                             {theme === 'dark' ? <Sun size={16} /> : <Moon size={16} />}
+                             {theme === 'dark' ? '日间模式' : '夜间模式'}
+                          </button>
+
+                          {/* Multi-select (Admin only) */}
+                          {role === 'admin' && (
+                             <button 
+                               onClick={() => { toggleSelectionMode(); setUserMenuOpen(false); }}
+                               className="w-full text-left px-4 py-2.5 text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 flex items-center gap-3 transition-colors"
+                             >
+                               <CheckSquare size={16} />
+                               {isSelectionMode ? '退出多选' : '批量管理'}
+                             </button>
+                          )}
+
+                          {/* Settings (Admin only) */}
+                          {role === 'admin' && (
+                             <Link 
+                               to="/settings" 
+                               onClick={() => setUserMenuOpen(false)}
+                               className="w-full text-left px-4 py-2.5 text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 flex items-center gap-3 transition-colors"
+                             >
+                               <SettingsIcon size={16} />
+                               设置
+                             </Link>
+                          )}
+
+                          <div className="h-px bg-gray-200 dark:bg-gray-700 my-1"></div>
+
+                          {/* Logout */}
+                          {role ? (
+                             <button 
+                               onClick={() => { handleLogout(); setUserMenuOpen(false); }}
+                               className="w-full text-left px-4 py-2.5 text-sm text-red-600 hover:bg-red-50 dark:hover:bg-red-900/20 flex items-center gap-3 transition-colors"
+                             >
+                               <LogOut size={16} />
+                               退出登录
+                             </button>
+                          ) : (
+                             <Link 
+                               to="/login"
+                               onClick={() => setUserMenuOpen(false)}
+                               className="w-full text-left px-4 py-2.5 text-sm text-blue-600 hover:bg-blue-50 dark:hover:bg-blue-900/20 flex items-center gap-3 transition-colors"
+                             >
+                               <User size={16} />
+                               登录
+                             </Link>
+                          )}
+                      </div>
+                    </>
+                )}
+            </div>
           </div>
         </div>
       </nav>
@@ -535,9 +753,9 @@ export default function Gallery() {
           setExpandedFolders={setExpandedFolders}
         />
 
-        {/* Main Content (Photo Grid) */}
-        <main className="flex-1 overflow-y-auto bg-white dark:bg-black relative custom-scrollbar scroll-smooth" id="scroll-container">
-          <div className="p-2 sm:p-4 md:p-6 pb-24 min-h-full">
+        {/* Main Content (Photo Grid or Map) */}
+        <main className="flex-1 overflow-hidden bg-white dark:bg-black relative" id="scroll-container">
+          <div className="h-full">
             {loading ? (
               <div className="flex justify-center py-20">
                 <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-gray-900 dark:border-white"></div>
@@ -547,34 +765,37 @@ export default function Gallery() {
                 {error}
               </div>
             ) : (
-              <>
-                <Timeline 
-              photos={displayedPhotos} 
-              folders={folders} 
-              onPhotoUpdate={fetchData} 
-              isSelectionMode={isSelectionMode}
-              selectedIds={selectedIds}
-              onSelectPhoto={handleSelectPhoto}
-              onDelete={handleDelete}
-              viewMode={viewMode}
-              onRestore={handleRestore}
-              onDeleteForever={handleDeleteForever}
-              onToggleFavorite={handleToggleFavorite}
-              onLightboxChange={setIsLightboxOpen}
-            />
-                
-                {/* Pagination / Load More */}
-                {hasMore && (
-                  <div className="flex justify-center mt-8 pb-8">
-                    <button
-                      onClick={() => setVisibleCount(prev => prev + 50)}
-                      className="px-6 py-2 bg-gray-100 dark:bg-gray-800 hover:bg-gray-200 dark:hover:bg-gray-700 text-gray-700 dark:text-gray-200 rounded-full text-sm font-medium transition-colors"
-                    >
-                      加载更多
-                    </button>
-                  </div>
-                )}
-              </>
+              viewMode === 'map' ? (
+                 <MapView photos={photos} />
+              ) : (
+                 <div className="h-full flex flex-col">
+                    {/* Memories (Only in All Photos view) */}
+                    {!searchQuery && !folderId && viewMode === 'normal' && (
+                       <Memories 
+                         photos={allPhotos.filter(p => !p.deletedAt)} 
+                         onSelectPhoto={(p) => setTargetPhotoId(p.id)} 
+                       />
+                    )}
+                    
+                    <Timeline 
+                      photos={photos} 
+                      folders={folders} 
+                      onPhotoUpdate={fetchData} 
+                      isSelectionMode={isSelectionMode}
+                      selectedIds={selectedIds}
+                      onSelectPhoto={handleSelectPhoto}
+                      onDelete={handleDelete}
+                      viewMode={viewMode}
+                      onRestore={handleRestore}
+                      onDeleteForever={handleDeleteForever}
+                      onToggleFavorite={handleToggleFavorite}
+                      onUpdatePhotoDetail={handleUpdatePhotoDetail}
+                      onLightboxChange={setIsLightboxOpen}
+                      targetPhotoId={targetPhotoId}
+                      onClearTarget={() => setTargetPhotoId(null)}
+                    />
+                 </div>
+              )
             )}
           </div>
         </main>

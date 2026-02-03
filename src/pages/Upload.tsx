@@ -18,6 +18,13 @@ interface UploadResponse {
   publicUrl: string;
   key: string;
   thumbnailKey?: string;
+  // New fields
+  aiTags?: string[];
+  aiDescription?: string;
+  blurhash?: string;
+  location?: any;
+  compressed?: boolean;
+  originalSize?: number;
 }
 
 
@@ -59,6 +66,18 @@ export default function Upload() {
   }>({ isOpen: false, message: '', onConfirm: () => {} });
 
   useEffect(() => {
+    // Try to load cached folders first to speed up rendering
+    const cachedFolders = localStorage.getItem('cachedFolders');
+    if (cachedFolders) {
+        try {
+            const parsed = JSON.parse(cachedFolders);
+            setFolders(parsed);
+            if (parsed.length > 0) {
+               setSelectedFolder(parsed[0].id);
+            }
+        } catch (e) { /* ignore */ }
+    }
+
     if (role) {
       fetchFolders();
     }
@@ -66,43 +85,34 @@ export default function Upload() {
 
   const fetchFolders = async () => {
     try {
+      // ... existing fetch logic
       const data = await apiRequest<Metadata>('/data');
       
+      let finalFolders: Folder[] = [];
+
       if (role === 'visitor') {
-        // Fetch fresh status from backend to ensure we have latest allowedFolders
+         // ... existing visitor logic
         try {
            const status = await apiRequest<any>('/auth/status');
-           // Ensure allowedFolders is an array
            const allowed = Array.isArray(status.allowedFolders) ? status.allowedFolders : [];
-           
-           // Sync to local storage for consistency (though we used fresh data here)
            localStorage.setItem('allowedFolders', JSON.stringify(allowed));
-           
-           // Filter folders that are in the allowed list
-           const visibleFolders = data.folders.filter(f => allowed.includes(f.id));
-           setFolders(visibleFolders);
-           
-           if (visibleFolders.length > 0) {
-             // Only set default if nothing selected OR selected is not in allowed
-             if (!selectedFolder || !allowed.includes(selectedFolder)) {
-                setSelectedFolder(visibleFolders[0].id);
-             }
-           } else {
-             setSelectedFolder('');
-           }
+           finalFolders = data.folders.filter(f => allowed.includes(f.id));
         } catch (authError) {
-           console.error("Failed to verify visitor permissions", authError);
-           // Fallback to local storage if status check fails (e.g. offline)
            const storedAllowedStr = localStorage.getItem('allowedFolders');
            const storedAllowed = storedAllowedStr ? JSON.parse(storedAllowedStr) : [];
-           const visibleFolders = data.folders.filter(f => storedAllowed.includes(f.id));
-           setFolders(visibleFolders);
+           finalFolders = data.folders.filter(f => storedAllowed.includes(f.id));
         }
       } else {
-        setFolders(data.folders);
-        if (data.folders.length > 0 && !selectedFolder) {
-          setSelectedFolder(data.folders[0].id);
-        }
+        finalFolders = data.folders;
+      }
+      
+      setFolders(finalFolders);
+      
+      // Update cache
+      localStorage.setItem('cachedFolders', JSON.stringify(finalFolders));
+      
+      if (finalFolders.length > 0 && (!selectedFolder || !finalFolders.find(f => f.id === selectedFolder))) {
+         setSelectedFolder(finalFolders[0].id);
       }
     } catch (e) {
       console.error(e);
@@ -362,7 +372,12 @@ export default function Upload() {
           folder: selectedFolder,
           uploadedAt: new Date().toISOString(),
           hasOriginal: uploadData.compressed || false,
-          originalSize: uploadData.originalSize
+          originalSize: uploadData.originalSize,
+          // New fields from backend processing
+          blurhash: uploadData.blurhash,
+          location: uploadData.location,
+          aiTags: uploadData.aiTags,
+          aiDescription: uploadData.aiDescription
         };
 
         await apiRequest('/data', {

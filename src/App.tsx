@@ -21,6 +21,7 @@ function App() {
               <Route path="/" element={<Navigate to="/gallery" replace />} />
               <Route path="/gallery" element={<Gallery />} />
               <Route path="/favorites" element={<Gallery />} />
+              <Route path="/map" element={<Gallery />} />
               <Route path="/folder/:id" element={<Gallery />} />
               <Route path="/upload" element={<Upload />} />
             </Route>

@@ -1,6 +1,6 @@
 import React from 'react';
 import { Link } from 'react-router-dom';
-import { Search, Heart, Folder as FolderIcon, ChevronDown, ChevronRight, Trash2 } from 'lucide-react';
+import { Search, Heart, Folder as FolderIcon, ChevronDown, ChevronRight, Trash2, Map } from 'lucide-react';
 import { Folder } from '../types';
 import { useConfig } from '../context/ConfigContext';
 
@@ -10,7 +10,7 @@ interface SidebarProps {
   isLightboxOpen: boolean;
   searchQuery: string;
   setSearchQuery: (query: string) => void;
-  viewMode: 'normal' | 'favorites' | 'trash';
+  viewMode: 'normal' | 'favorites' | 'trash' | 'map';
   folderId?: string;
   favoritesCount: number;
   totalPhotosCount: number;
@@ -40,9 +40,7 @@ export default function Sidebar({
   const { t } = useConfig();
 
   // Filter folders based on search
-  const filteredFolders = folders.filter(f => 
-    f.name.toLowerCase().includes(searchQuery.toLowerCase())
-  );
+  const filteredFolders = folders;
 
   return (
     <>
@@ -52,18 +50,6 @@ export default function Sidebar({
         ${isLightboxOpen ? 'lg:-translate-x-64 lg:w-0 lg:overflow-hidden -translate-x-full' : ''}
       `}>
         <div className="h-full flex flex-col w-64">
-          <div className="p-4 border-b border-gray-200 dark:border-gray-800">
-            <div className="relative">
-              <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
-              <input
-                type="text"
-                placeholder="搜索相册..."
-                value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
-                className="w-full pl-9 pr-3 py-2 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg text-sm focus:outline-none focus:border-blue-500 transition-colors"
-              />
-            </div>
-          </div>
           
           <div className="flex-1 overflow-y-auto p-2 space-y-1 custom-scrollbar">
             <Link 
@@ -84,6 +70,15 @@ export default function Sidebar({
               <FolderIcon size={16} />
               所有照片
               <span className="ml-auto text-xs opacity-60">{totalPhotosCount}</span>
+            </Link>
+
+            <Link 
+              to="/map"
+              onClick={() => setIsOpen(false)}
+              className={`flex items-center gap-3 px-3 py-2 rounded-lg text-sm font-medium transition-colors ${viewMode === 'map' ? 'bg-green-100 text-green-600 dark:bg-green-900/20 dark:text-green-400' : 'text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-800'}`}
+            >
+              <Map size={16} />
+              地图模式
             </Link>
 
             <div className="pt-4">

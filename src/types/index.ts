@@ -13,6 +13,17 @@ export interface Photo {
   isFavorite?: boolean;
   hasOriginal?: boolean;
   originalSize?: number;
+  // New fields matching API response (db.ts)
+  blurhash?: string;
+  location?: {
+    lat: number;
+    lng: number;
+    name?: string;
+  };
+  aiTags?: string[];
+  aiDescription?: string;
+  // Debug field
+  _score?: number;
 }
 
 export interface Folder {

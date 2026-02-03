@@ -12,8 +12,20 @@ interface AuthState {
 const AuthContext = createContext<AuthState | null>(null);
 
 export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
-  const [token, setToken] = useState<string | null>(localStorage.getItem('token'));
-  const [role, setRole] = useState<'admin' | 'visitor' | null>(null);
+  const [token, setToken] = useState<string | null>(() => localStorage.getItem('token'));
+  const [role, setRole] = useState<'admin' | 'visitor' | null>(() => {
+     // Initial load role from token if valid
+     const t = localStorage.getItem('token');
+     if (t) {
+        try {
+           const decoded: any = jwtDecode(t);
+           if (decoded.exp * 1000 > Date.now()) {
+              return decoded.role;
+           }
+        } catch(e) {}
+     }
+     return null;
+  });
 
   useEffect(() => {
     if (token) {
@@ -23,7 +35,9 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         if (decoded.exp * 1000 < Date.now()) {
           logout();
         } else {
-          setRole(decoded.role);
+          if (role !== decoded.role) {
+             setRole(decoded.role);
+          }
           // If we have allowedFolders in token, sync to localStorage just in case
           if (decoded.allowedFolders) {
             localStorage.setItem('allowedFolders', JSON.stringify(decoded.allowedFolders));
@@ -32,6 +46,8 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       } catch (e) {
         logout();
       }
+    } else {
+       setRole(null);
     }
   }, [token]);
 

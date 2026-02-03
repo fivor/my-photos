@@ -24,7 +24,10 @@ export async function apiRequest<T = any>(endpoint: string, options: RequestInit
 
   if (response.status === 401) {
     localStorage.removeItem('token');
-    // window.location.href = '/login'; // Let router handle redirect or throw error
+    // Redirect to login if not already there
+    if (!window.location.pathname.startsWith('/login')) {
+       window.location.href = '/login'; 
+    }
     throw new Error('Unauthorized');
   }
 

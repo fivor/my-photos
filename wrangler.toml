@@ -4,8 +4,12 @@ compatibility_date = "2024-01-01"
 
 routes = [
   { pattern = "api.fivor.de", custom_domain = true },
-  { pattern = "i.fivor.de/api/*", zone_name = "fivor.de" }
+  { pattern = "i.fivor.de/*", zone_name = "fivor.de" }
 ]
+
+[assets]
+directory = "./dist"
+binding = "ASSETS"
 
 [[r2_buckets]]
 binding = "BUCKET"
@@ -15,10 +19,22 @@ preview_bucket_name = "photo-gallery-preview"
 [[d1_databases]]
 binding = "DB"
 database_name = "photo-gallery-db"
-database_id = "UPDATE_WITH_YOUR_D1_DATABASE_ID"
+database_id = "7efc4635-8538-4ca3-987c-54fd09cf8138"
 preview_database_id = "DB"
+migrations_dir = "api/migrations"
+
+[ai]
+binding = "AI"
+
+[[vectorize]]
+binding = "VECTORIZE"
+index_name = "photo-index-v2"
 
 [vars]
 SITE_TITLE = "My Photo Gallery"
 R2_PUBLIC_DOMAIN = "https://im.fivor.de"
 # Note: ADMIN_PASSWORD, VISITOR_PASSWORD, and JWT_SECRET should be set as secrets in Cloudflare dashboard
+# RESEND_API_KEY = "re_123456789" # Set this in Cloudflare Dashboard -> Settings -> Variables
+
+[triggers]
+crons = ["0 19 * * 5"] # Run weekly at Friday 19:00 UTC (Saturday 03:00 Beijing Time)
