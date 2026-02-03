@@ -1,130 +1,144 @@
-# My Photos (Serverless Photo Gallery)
+# My Photos (Serverless AI Photo Gallery)
 
-一个基于 Cloudflare R2 + Workers + React 构建的现代化、高性能、Serverless 个人相册系统。
+一个基于 Cloudflare 生态（R2 + Workers + D1 + Vectorize + AI）构建的下一代 Serverless 智能个人相册系统。
+
+它不仅是一个相册，更是一个**拥有 AI 大脑的图像管理中心**。它能看懂你的照片，支持自然语言搜索，并自动进行智能分类。
 
 ## ✨ 核心特性
 
-*   **Serverless 架构**：后端完全运行在 Cloudflare Workers 上，无需服务器维护，成本极低。
-*   **全球加速**：利用 Cloudflare R2 存储照片，配合 CDN 全球边缘缓存，加载速度飞快。
-*   **现代化 UI**：基于 React + Tailwind CSS 构建，支持深色/浅色模式，响应式设计适配移动端。
-*   **多格式支持**：支持 JPG, PNG, WEBP, GIF, AVIF, TIFF, BMP 等多种图片格式上传与预览。
-*   **智能压缩**：前端/后端双重压缩优化，自动生成 WebP 缩略图，节省流量并提升速度。
-*   **相册管理**：支持创建多级相册、拖拽上传、批量管理（移动、删除、恢复）。
-*   **访客系统**：支持生成专属访客账号，可精确控制每个访客能看到的特定相册。
-*   **隐私保护**：所有 API 请求均经过 JWT 鉴权，支持回收站机制防止误删。
+### 🧠 AI 驱动的智能体验
+*   **语义搜索**: 不再依赖死板的文件名或标签。你可以直接搜索 *"夕阳下的海滩"*、*"穿着红裙子的女孩"* 或 *"去年冬天的雪景"*，AI 能理解你的意图并精准找到照片。
+*   **自动打标**: 上传照片时，AI (ResNet-50) 会自动识别场景和物体，并生成标签（如 `landscape`, `cat`, `food`）。
+*   **智能描述**: 利用多模态大模型 (LLaVA)，系统会自动为每张照片生成一段详细的英文描述，用于增强搜索索引。
+*   **多语言支持**: 搜索框内置轻量级翻译模型，支持用中文直接搜索，系统会自动翻译并匹配英文索引。
+
+### 🏗️ 极致的 Serverless 架构
+*   **全栈上云**: 
+    *   **存储**: Cloudflare R2 (海量低成本存储)
+    *   **计算**: Cloudflare Workers (全球边缘计算)
+    *   **数据库**: Cloudflare D1 (Serverless SQL 数据库)
+    *   **向量库**: Cloudflare Vectorize (存储图片特征向量)
+    *   **AI 推理**: Cloudflare Workers AI (运行开源模型)
+*   **零维护成本**: 无需购买服务器，利用 Cloudflare 免费额度即可运行个人规模的相册。
+
+### 🎨 现代化用户体验
+*   **沉浸式画廊**: 瀑布流布局，支持按时间线分组查看。
+*   **地图模式**: 自动解析 Exif GPS 信息，在地图上展示你的足迹。
+*   **安全隐私**: 
+    *   **分级权限**: 管理员拥有完全控制权，访客只能查看被授权的文件夹。
+    *   **安全设置**: 支持修改密码、绑定安全邮箱、发送验证码进行敏感操作验证。
+    *   **数据备份**: 每周自动全量备份数据库到 R2，支持手动触发清理和重建索引。
+*   **高性能**: 支持 HEIC/WebP 格式自动转码，缩略图预生成，PWA 离线访问支持。
+
+---
 
 ## 🛠️ 技术栈
 
 **前端 (Frontend):**
-*   **框架**: React 18 + TypeScript + Vite
-*   **样式**: Tailwind CSS + Lucide React (图标)
-*   **状态管理**: Zustand
-*   **路由**: React Router v7
-*   **组件库**: React Photo View (灯箱), React Dropzone (上传)
-*   **部署**: Vercel (推荐) / GitHub Pages / Cloudflare Pages
+*   **Core**: React 18 + TypeScript + Vite
+*   **UI**: Tailwind CSS + Lucide React + Framer Motion (动画)
+*   **Map**: Leaflet + React Leaflet
+*   **State**: Zustand + Context API
+*   **Deploy**: Vercel / GitHub Pages / Cloudflare Pages (三端同步支持)
 
 **后端 (Backend):**
-*   **运行时**: Cloudflare Workers
-*   **存储**: Cloudflare R2 (对象存储)
-*   **鉴权**: JWT (JSON Web Tokens)
-*   **图像处理**: @jsquash (WebAssembly 图像压缩/解码)
+*   **Runtime**: Cloudflare Workers
+*   **Storage**: Cloudflare R2 (Images) + D1 (Metadata)
+*   **AI/Vector**: Cloudflare Vectorize + Workers AI (@cf/baai/bge-base-en-v1.5, @cf/llava-hf/llava-1.5-7b-hf)
+*   **Auth**: JWT + MailChannels/Resend (Email)
 
-## 🚀 快速开始
+---
 
-### 1. 前置准备
-*   一个 [Cloudflare](https://www.cloudflare.com/) 账号。
-*   一个域名（托管在 Cloudflare 上以获得最佳体验）。
-*   Node.js 环境 (v18+)。
+## 🚀 部署指南 (三端同步版)
 
-### 2. 后端部署 (Cloudflare Workers)
+本系统设计为**前后端分离**。后端只需部署一次（在 Cloudflare），前端可以同时部署在 Vercel、GitHub Pages 和 Cloudflare Pages，且数据完全互通。
 
-1.  **安装 Wrangler CLI**:
+### 1. 后端部署 (Cloudflare)
+
+1.  **准备工作**:
+    *   注册 Cloudflare 账号。
+    *   安装 Wrangler: `npm install -g wrangler`。
+    *   登录: `wrangler login`。
+
+2.  **创建资源**:
+    *   **R2 Bucket**: 创建名为 `photo-gallery` 的桶，绑定自定义域名（如 `im.yourdomain.com`）。
+    *   **D1 Database**: 创建数据库 `photo-gallery-db`。
+    *   **Vectorize Index**: 创建索引 `photo-index-v2` (维度 768, metric: cosine)。
+
+3.  **配置 `wrangler.toml`**:
+    *   填入你的 `database_id` 和 R2 域名配置。
+    *   确保开启了 AI 绑定。
+
+4.  **初始化数据库**:
     ```bash
-    npm install -g wrangler
+    npm run deploy:worker # 首次部署会自动应用 D1 迁移
     ```
 
-2.  **配置 R2 存储桶**:
-    *   在 Cloudflare 后台创建一个 R2 Bucket，命名为 `photo-gallery`。
-    *   在 Bucket 设置中绑定自定义域名（如 `im.example.com`），并开启 "Public Access"（或者配置 Access 策略）。
-    *   **重要**: 在 Cloudflare 域名 DNS 设置中，为该图片域名配置 Page Rule: `Cache Level: Cache Everything`，以开启 CDN 缓存。
-
-3.  **配置 Wrangler**:
-    修改 `wrangler.toml`:
-    ```toml
-    name = "photo-gallery-worker"
-    # 修改为你的图片域名
-    [vars]
-    R2_PUBLIC_DOMAIN = "https://im.example.com" 
+5.  **设置密钥**:
+    ```bash
+    wrangler secret put ADMIN_PASSWORD  # 管理员密码
+    wrangler secret put JWT_SECRET      # JWT 签名密钥
+    wrangler secret put RESEND_API_KEY  # (可选) 用于发送邮件验证码
     ```
 
-4.  **设置密钥**:
+### 2. 前端部署 (多平台)
+
+无论选择哪个平台，核心只需要配置一个环境变量：`VITE_API_BASE`。
+
+#### 方案 A: Vercel (推荐)
+1.  导入 GitHub 仓库。
+2.  在 Settings -> Environment Variables 添加：
+    *   `VITE_API_BASE`: `https://api.yourdomain.com` (你的 Worker 地址)
+3.  **注意**: 项目根目录已包含 `.vercelignore`，会自动忽略 `api/` 目录以避免 Serverless Function 限制。
+
+#### 方案 B: Cloudflare Pages (推荐)
+1.  在 Cloudflare Dashboard -> Workers & Pages -> Create Application -> Pages -> Connect to Git。
+2.  选择仓库，构建设置：
+    *   **Framework Preset**: Vite
+    *   **Build Command**: `npm run build`
+    *   **Output Directory**: `dist`
+3.  **环境变量**:
+    *   添加 `VITE_API_BASE`: `https://api.yourdomain.com`
+4.  点击部署。
+
+#### 方案 C: GitHub Pages
+1.  在仓库 Settings -> Pages 中选择 Source 为 `gh-pages` 分支。
+2.  修改 `.github/workflows/deploy.yml` (如果使用 Action) 或手动构建：
     ```bash
-    wrangler secret put ADMIN_PASSWORD  # 设置管理员密码
-    wrangler secret put JWT_SECRET      # 设置 JWT 签名密钥（随机字符串）
-    wrangler secret put VISITOR_PASSWORD # 设置全局访客密码（可选）
-    ```
-
-5.  **部署后端**:
-    ```bash
-    npm run deploy:worker
-    ```
-    记下部署后的 Worker URL（如 `https://photo-api.yourname.workers.dev`）。
-
-### 3. 前端部署 (Vercel)
-
-1.  **Fork 本仓库**。
-2.  **在 Vercel 中导入项目**。
-3.  **配置环境变量**:
-    *   `VITE_API_BASE`: 填入你的 Worker URL (例如 `https://photo-api.yourname.workers.dev/api`，注意带 `/api` 后缀)。
-4.  **部署并绑定域名**:
-    *   部署完成后，绑定你的前端域名（如 `a.example.com`）。
-    *   由于 Vercel 自带全球 CDN，建议在 `vercel.json` 中保持默认缓存策略。
-
-## ⚙️ 环境变量说明
-
-| 变量名 | 类型 | 说明 |
-| :--- | :--- | :--- |
-| `VITE_API_BASE` | Frontend Env | 后端 API 地址，用于前端请求 |
-| `R2_PUBLIC_DOMAIN` | Backend Var | R2 存储桶绑定的公开域名 |
-| `ADMIN_PASSWORD` | Backend Secret | 管理员登录密码 |
-| `JWT_SECRET` | Backend Secret | 用于生成 Token 的密钥 |
-
-## 📂 目录结构
-
-```
-.
-├── api/                 # Cloudflare Worker 后端代码
-│   ├── index.ts        # 入口文件
-│   └── utils/          # 后端工具函数 (Auth, Storage, Response)
-├── src/                 # React 前端代码
-│   ├── components/     # UI 组件 (Sidebar, Timeline, etc.)
-│   ├── pages/          # 页面组件 (Gallery, Upload, Login)
-│   ├── context/        # 全局状态上下文
-│   ├── hooks/          # 自定义 Hooks
-│   └── utils/          # 前端工具函数
-├── vercel.json         # Vercel 部署配置
-├── wrangler.toml       # Cloudflare Worker 配置
-└── vite.config.ts      # Vite 构建配置
-```
-
-## 📝 开发指南
-
-1.  **安装依赖**:
-    ```bash
-    npm install
-    ```
-
-2.  **本地开发**:
-    ```bash
-    npm run dev
-    ```
-    *注意：本地开发默认连接生产环境的 API（如果 `.env` 未配置本地 Mock）。*
-
-3.  **构建**:
-    ```bash
+    # 本地构建并推送
+    export VITE_API_BASE=https://api.yourdomain.com
     npm run build
+    npm run deploy # 自动推送到 gh-pages 分支
     ```
+
+### 🔄 数据同步原理
+由于所有前端部署（Vercel/CF Pages/GH Pages）都指向**同一个 Cloudflare Worker 后端**（通过 `VITE_API_BASE` 配置），因此：
+*   你在 Vercel 版上传的照片，在 Cloudflare Pages 版也能立刻看到。
+*   你在 GitHub Pages 版修改的设置，会同步影响所有平台。
+*   **后端是唯一的数据源** (D1 + R2)，前端只是展示层。
+
+---
+
+## 📝 开发与维护
+
+### 本地开发
+```bash
+# 1. 安装依赖
+npm install
+
+# 2. 启动前端 (默认连接生产环境 API，需在 .env 中配置 VITE_API_BASE)
+npm run dev
+
+# 3. 启动后端 (Wrangler 开发模式)
+npm run dev:worker
+```
+
+### 常用管理命令
+*   **重建 AI 索引**: 在设置页面点击 "重建 AI 索引"，系统会重新扫描所有照片生成向量。
+*   **清理垃圾文件**: 在设置页面点击 "清理文件"，系统会扫描 R2 并删除数据库中不存在的孤儿文件。
+*   **备份**: 系统每周五自动备份数据库到 R2 的 `backups/` 目录。
+
+---
 
 ## 📄 License
-
 MIT License
