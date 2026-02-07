@@ -1,4 +1,4 @@
-# My Photos (Serverless AI Photo Gallery)
+# 云端 AI 相册 (Serverless Photo Gallery)
 
 一个基于 Cloudflare 生态（R2 + Workers + D1 + Vectorize + AI）构建的下一代 Serverless 智能个人相册系统。
 
@@ -34,18 +34,18 @@
 
 ## 🛠️ 技术栈
 
-**前端 (Frontend):**
-*   **Core**: React 18 + TypeScript + Vite
-*   **UI**: Tailwind CSS + Lucide React + Framer Motion (动画)
-*   **Map**: Leaflet + React Leaflet
-*   **State**: Zustand + Context API
-*   **Deploy**: Vercel / GitHub Pages / Cloudflare Pages (三端同步支持)
+**前端:**
+*   **核心框架**: React 18 + TypeScript + Vite
+*   **UI 组件**: Tailwind CSS + Lucide React + Framer Motion (动画)
+*   **地图组件**: Leaflet + React Leaflet
+*   **状态管理**: Zustand + Context API
+*   **部署平台**: Vercel / GitHub Pages / Cloudflare Pages (三端同步支持)
 
-**后端 (Backend):**
-*   **Runtime**: Cloudflare Workers
-*   **Storage**: Cloudflare R2 (Images) + D1 (Metadata)
-*   **AI/Vector**: Cloudflare Vectorize + Workers AI (@cf/baai/bge-base-en-v1.5, @cf/llava-hf/llava-1.5-7b-hf)
-*   **Auth**: JWT + MailChannels/Resend (Email)
+**后端:**
+*   **运行环境**: Cloudflare Workers
+*   **存储服务**: Cloudflare R2 (图片) + D1 (元数据)
+*   **AI/向量**: Cloudflare Vectorize + Workers AI (@cf/baai/bge-base-en-v1.5, @cf/llava-hf/llava-1.5-7b-hf)
+*   **身份验证**: JWT + MailChannels/Resend (邮件服务)
 
 ---
 
@@ -61,7 +61,7 @@
     *   登录: `wrangler login`。
 
 2.  **创建资源**:
-    *   **R2 Bucket**: 创建名为 `photo-gallery` 的桶，绑定自定义域名（如 `im.yourdomain.com`）。
+    *   **R2 Bucket**: 创建名为 `photo-gallery` 的存储桶，绑定自定义域名（如 `im.yourdomain.com`）。
     *   **D1 Database**: 创建数据库 `photo-gallery-db`。
     *   **Vectorize Index**: 创建索引 `photo-index-v2` (维度 768, metric: cosine)。
 
@@ -94,9 +94,9 @@
 #### 方案 B: Cloudflare Pages (推荐)
 1.  在 Cloudflare Dashboard -> Workers & Pages -> Create Application -> Pages -> Connect to Git。
 2.  选择仓库，构建设置：
-    *   **Framework Preset**: Vite
-    *   **Build Command**: `npm run build`
-    *   **Output Directory**: `dist`
+    *   **框架预设 (Framework Preset)**: Vite
+    *   **构建命令 (Build Command)**: `npm run build`
+    *   **输出目录 (Output Directory)**: `dist`
 3.  **环境变量**:
     *   添加 `VITE_API_BASE`: `https://api.yourdomain.com`
 4.  点击部署。
@@ -140,5 +140,5 @@ npm run dev:worker
 
 ---
 
-## 📄 License
+## 📄 开源协议 (License)
 MIT License
