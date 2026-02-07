@@ -35,8 +35,8 @@ export const getExifDate = async (file: File): Promise<string | null> => {
       if (dateParts.length >= 2) {
         const [date, time] = dateParts;
         const [year, month, day] = date.split(':');
-        // Return ISO format YYYY-MM-DD
-        return `${year}-${month}-${day}`; 
+        // Return ISO format YYYY-MM-DDTHH:mm:ss
+        return `${year}-${month}-${day}T${time}`; 
       }
     }
     return null;

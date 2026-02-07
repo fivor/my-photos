@@ -228,6 +228,15 @@ export default function Timeline({ photos, folders, onPhotoUpdate, isSelectionMo
       return acc;
     }, {} as Record<string, Photo[]>);
 
+    // Sort photos within each date group by time (descending)
+    Object.keys(grouped).forEach(date => {
+      grouped[date].sort((a, b) => {
+        const dateA = new Date(a.date || a.uploadedAt).getTime();
+        const dateB = new Date(b.date || b.uploadedAt).getTime();
+        return dateB - dateA;
+      });
+    });
+
     const dates = Object.keys(grouped).sort((a, b) => new Date(b).getTime() - new Date(a).getTime());
     
     // Flatten for Lightbox

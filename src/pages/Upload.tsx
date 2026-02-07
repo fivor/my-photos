@@ -122,7 +122,7 @@ export default function Upload() {
   const onDrop = useCallback(async (acceptedFiles: File[]) => {
     const newFiles = await Promise.all(acceptedFiles.map(async (file) => {
       const exifDate = await getExifDate(file);
-      const date = exifDate || format(new Date(file.lastModified), 'yyyy-MM-dd');
+      const date = exifDate || format(new Date(file.lastModified), "yyyy-MM-dd'T'HH:mm:ss");
       
       return Object.assign(file, {
         preview: URL.createObjectURL(file),
@@ -697,9 +697,9 @@ export default function Upload() {
                       <div className="flex gap-3">
                         <div className="flex-1">
                           <input
-                            type="date"
-                            value={file.date}
-                            onChange={(e) => updateFile(index, 'date', e.target.value)}
+                            type="datetime-local"
+                            value={file.date?.substring(0, 16)}
+                            onChange={(e) => updateFile(index, 'date', e.target.value + ':00')}
                             className="w-full bg-white dark:bg-gray-700/50 border border-gray-300 dark:border-gray-600 rounded px-2 py-1 text-xs text-gray-900 dark:text-gray-200 focus:border-blue-500 focus:outline-none transition-colors"
                             disabled={file.uploadStatus === 'success'}
                           />
