@@ -210,21 +210,28 @@ export default function Timeline({ photos, folders, onPhotoUpdate, isSelectionMo
     // Let's modify Gallery.tsx to attach score!
     
     const grouped = photos.reduce((acc, photo) => {
-      let date = photo.date ? photo.date : photo.uploadedAt.split('T')[0];
-      // Validate date string
-      if (!date || date === 'undefined' || date === 'null') {
-          date = new Date().toISOString().split('T')[0]; // Fallback to today
+      // 1. Get raw date string or fallback
+      const rawDate = photo.date || photo.uploadedAt;
+      let dateKey = '';
+
+      try {
+        // 2. Parse properly to Date object
+        const dateObj = parseISO(rawDate);
+        if (isNaN(dateObj.getTime())) {
+             // Fallback to today if invalid
+             dateKey = format(new Date(), 'yyyy-MM-dd');
+        } else {
+             // 3. Format to local YYYY-MM-DD for grouping
+             dateKey = format(dateObj, 'yyyy-MM-dd');
+        }
+      } catch (e) {
+        dateKey = format(new Date(), 'yyyy-MM-dd');
       }
-      // Ensure date is a valid string for grouping (YYYY-MM-DD)
-      // Sometimes photo.date might be full ISO string, we need just date part for grouping key
-      if (date.includes('T')) {
-          date = date.split('T')[0];
+
+      if (!acc[dateKey]) {
+        acc[dateKey] = [];
       }
-      
-      if (!acc[date]) {
-        acc[date] = [];
-      }
-      acc[date].push(photo);
+      acc[dateKey].push(photo);
       return acc;
     }, {} as Record<string, Photo[]>);
 
