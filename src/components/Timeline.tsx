@@ -210,7 +210,17 @@ export default function Timeline({ photos, folders, onPhotoUpdate, isSelectionMo
     // Let's modify Gallery.tsx to attach score!
     
     const grouped = photos.reduce((acc, photo) => {
-      const date = photo.date ? photo.date : photo.uploadedAt.split('T')[0];
+      let date = photo.date ? photo.date : photo.uploadedAt.split('T')[0];
+      // Validate date string
+      if (!date || date === 'undefined' || date === 'null') {
+          date = new Date().toISOString().split('T')[0]; // Fallback to today
+      }
+      // Ensure date is a valid string for grouping (YYYY-MM-DD)
+      // Sometimes photo.date might be full ISO string, we need just date part for grouping key
+      if (date.includes('T')) {
+          date = date.split('T')[0];
+      }
+      
       if (!acc[date]) {
         acc[date] = [];
       }
@@ -451,10 +461,22 @@ export default function Timeline({ photos, folders, onPhotoUpdate, isSelectionMo
         className="h-full w-full custom-scrollbar"
         itemContent={(index, row) => {
           if (row.type === 'header') {
+            let parsedDate;
+            try {
+                parsedDate = parseISO(row.date);
+                // Check if date is valid
+                if (isNaN(parsedDate.getTime())) {
+                    throw new Error('Invalid date');
+                }
+            } catch (e) {
+                // Fallback for invalid dates
+                parsedDate = new Date();
+            }
+
             return (
               <div className="py-4 px-2 sm:px-4 sticky top-0 z-40 bg-white/90 dark:bg-black/90 backdrop-blur-sm">
                 <h3 className="text-lg sm:text-xl font-bold text-gray-800 dark:text-gray-100">
-                  {format(parseISO(row.date), dateFormat, { locale })}
+                  {format(parsedDate, dateFormat, { locale })}
                 </h3>
               </div>
             );
