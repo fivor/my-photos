@@ -68,7 +68,34 @@ export default function Gallery() {
   const [userMenuOpen, setUserMenuOpen] = useState(false);
 
   useEffect(() => {
-    fetchData();
+    const load = async () => {
+      // 1. Try to load from cache first
+      const cached = localStorage.getItem('gallery_cache');
+      let hasCache = false;
+      
+      // Only use cache if we don't have data yet (or to show it immediately on mount)
+      if (cached && allPhotos.length === 0) {
+        try {
+          const data = JSON.parse(cached);
+          if (data && Array.isArray(data.photos)) {
+            setAllPhotos(data.photos);
+            const sortedFolders = data.folders.sort((a: any, b: any) => 
+              a.name.localeCompare(b.name, 'zh-Hans-CN', { sensitivity: 'accent' })
+            );
+            setFolders(sortedFolders);
+            setLoading(false);
+            hasCache = true;
+          }
+        } catch (e) {
+          console.error('Cache parse error', e);
+        }
+      }
+
+      // 2. Fetch fresh data
+      await fetchData(hasCache || allPhotos.length > 0);
+    };
+    
+    load();
   }, [folderId, location.key, viewMode]);
 
   const fetchData = async (silent = false) => {
@@ -80,6 +107,14 @@ export default function Gallery() {
       }
       const data: Metadata = await apiRequest('/data');
       
+      // Update Cache
+      try {
+        localStorage.setItem('gallery_cache', JSON.stringify(data));
+      } catch (e) {
+        // Ignore cache errors (e.g. quota exceeded)
+        console.warn('Failed to save cache', e);
+      }
+
       // Store all photos
       if (data && Array.isArray(data.photos)) {
         setAllPhotos(data.photos);
@@ -92,7 +127,11 @@ export default function Gallery() {
 
       setFolders(sortedFolders);
     } catch (err: any) {
-      setError(err.message || 'Failed to load photos');
+      console.error('Fetch error', err);
+      // Only show full page error if we have no data
+      if (allPhotos.length === 0) {
+        setError(err.message || 'Failed to load photos');
+      }
     } finally {
       setLoading(false);
     }
