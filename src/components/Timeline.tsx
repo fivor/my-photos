@@ -5,7 +5,7 @@ import 'react-photo-view/dist/react-photo-view.css';
 import { format, parseISO } from 'date-fns';
 import { getPhotoUrl, isHeic, formatFileSize } from '../utils/image';
 import { useAuth } from '../context/AuthContext';
-import { Check, Download, Share2, Trash2, FolderInput, ZoomIn, ZoomOut, Heart, RotateCcw, AlertTriangle, Edit2, Check as CheckIcon, X as XIcon, Calendar } from 'lucide-react';
+import { Check, Download, Share2, Trash2, FolderInput, ZoomIn, ZoomOut, Heart, RotateCcw, AlertTriangle, Edit2, Check as CheckIcon, X as XIcon } from 'lucide-react';
 import { apiRequest } from '../utils/api';
 import { useConfig } from '../context/ConfigContext';
 import { zhCN, enUS } from 'date-fns/locale';
@@ -68,6 +68,8 @@ const PhotoOverlayContent = ({ photo, role, onSave }: { photo: Photo, role: stri
     setIsEditing(false);
   }, [photo.id]);
 
+  const dateInputRef = useRef<HTMLInputElement>(null);
+
   const handleSave = (e?: React.FormEvent) => {
     e?.preventDefault();
     onSave({ description: desc, date: date });
@@ -85,16 +87,13 @@ const PhotoOverlayContent = ({ photo, role, onSave }: { photo: Photo, role: stri
           <textarea
             value={desc}
             onChange={(e) => setDesc(e.target.value)}
-            placeholder="Add a description..."
+            placeholder="增加一段描述..."
             className="w-full bg-black/40 text-white rounded p-2 text-sm focus:ring-1 focus:ring-blue-500 outline-none resize-none h-20"
             autoFocus
           />
           <div className="flex gap-2 items-center bg-black/40 rounded p-1">
-            <div className="flex items-center gap-1 px-2 border-r border-white/20">
-               <Calendar size={14} className="text-white" />
-               <span className="text-white text-xs">日历</span>
-            </div>
             <input
+              ref={dateInputRef}
               type="date"
               value={date ? date.substring(0, 10) : ''}
               onChange={(e) => {
@@ -104,8 +103,14 @@ const PhotoOverlayContent = ({ photo, role, onSave }: { photo: Photo, role: stri
                      setDate(e.target.value + existingTime);
                  }
               }}
-              className="bg-transparent text-white text-xs focus:outline-none flex-1 [color-scheme:dark]"
+              className="bg-transparent text-white text-xs focus:outline-none flex-1 [color-scheme:dark] px-2"
             />
+            <div 
+              className="flex items-center gap-1 px-2 border-l border-white/20 cursor-pointer"
+              onClick={() => dateInputRef.current?.showPicker()}
+            >
+               <span className="text-white text-xs hover:text-[#1890ff] transition-colors">日历</span>
+            </div>
             <button type="button" onClick={() => setIsEditing(false)} className="p-1 hover:bg-white/10 rounded text-gray-300">
                <XIcon size={16} />
             </button>

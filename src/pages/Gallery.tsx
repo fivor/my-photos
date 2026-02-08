@@ -601,7 +601,12 @@ export default function Gallery() {
     <div className="h-screen bg-white dark:bg-gray-900 text-gray-900 dark:text-white flex flex-col transition-colors duration-200 overflow-hidden">
       {/* Top Navigation Bar */}
       <nav className="border-b border-gray-200 dark:border-gray-800 bg-white dark:bg-gray-900 z-50 flex-shrink-0 relative">
-        <div className="max-w-full px-4 h-14 flex justify-between items-center">
+        <div className="max-w-full px-4 h-14 flex justify-between items-center relative">
+          {/* Slogan */}
+          <div className="absolute left-1/2 top-1/2 transform -translate-x-1/2 -translate-y-1/2 hidden md:block pointer-events-none">
+            <span className="text-[14px] text-[#595959] font-sans">拾光为念，相纸凝成诗行，岁月留芳</span>
+          </div>
+
           <div className="flex items-center gap-4">
             <button 
               className="lg:hidden p-2 -ml-2 text-gray-600 dark:text-gray-300"
