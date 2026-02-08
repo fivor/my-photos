@@ -6,7 +6,6 @@ import Login from './pages/Login';
 import Gallery from './pages/Gallery';
 import Upload from './pages/Upload';
 import Settings from './pages/Settings';
-import Trash from './pages/Trash';
 
 function App() {
   return (

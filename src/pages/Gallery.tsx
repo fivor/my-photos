@@ -52,7 +52,7 @@ export default function Gallery() {
       setSearchQuery, 
       isSearching, 
       getDisplayPhotos 
-  } = usePhotoSearch(photos, folderId);
+  } = usePhotoSearch(allPhotos, folderId, folders);
 
   const {
       isSelectionMode,

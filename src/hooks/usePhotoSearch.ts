@@ -1,28 +1,23 @@
-import { useState, useEffect, useRef } from 'react';
-import { Photo } from '../types';
+import { useState, useEffect, useMemo } from 'react';
+import { Photo, Folder } from '../types';
 import { apiRequest } from '../utils/api';
 
-export function usePhotoSearch(allPhotos: Photo[], folderId?: string) {
+export function usePhotoSearch(allPhotos: Photo[], folderId?: string, folders: Folder[] = []) {
   const [searchQuery, setSearchQuery] = useState('');
   const [isSearching, setIsSearching] = useState(false);
-  const [searchResults, setSearchResults] = useState<Photo[]>([]);
+  const [aiResults, setAiResults] = useState<Photo[]>([]);
 
+  // 1. Backend AI Search Effect
   useEffect(() => {
-    if (!searchQuery || searchQuery.length < 2) {
+    if (!searchQuery || searchQuery.length < 2 || searchQuery.includes('520')) {
       setIsSearching(false);
-      setSearchResults([]);
+      setAiResults([]);
       return;
     }
 
     setIsSearching(true);
     const timer = setTimeout(async () => {
       try {
-        // Special "520" logic (Client-side bypass)
-        if (searchQuery.includes('520')) {
-            setIsSearching(false);
-            return; 
-        }
-
         // Call Backend Search
         const res = await apiRequest<{ results: Photo[], debug: any }>('/search', {
             method: 'POST',
@@ -30,7 +25,10 @@ export function usePhotoSearch(allPhotos: Photo[], folderId?: string) {
         });
         
         if (res.results) {
-            setSearchResults(res.results);
+            // Requirement 4: Filter by relevance score > 62%
+            // The backend returns _score
+            const validResults = res.results.filter(p => (p._score || 0) > 0.62);
+            setAiResults(validResults);
         }
       } catch (e) {
         console.error('Search failed', e);
@@ -42,28 +40,55 @@ export function usePhotoSearch(allPhotos: Photo[], folderId?: string) {
     return () => clearTimeout(timer);
   }, [searchQuery]);
 
-  // Memoized result getter
+  // 2. Compute Final Display Photos
+  // Use useMemo to avoid re-calculating on every render, but depend on searchQuery, aiResults, etc.
+  // Actually, getDisplayPhotos is called during render, so it's fine.
   const getDisplayPhotos = (defaultPhotos: Photo[]) => {
-      if (searchQuery && searchQuery.length >= 2) {
-          // Special "520" Logic
-          if (searchQuery.includes('520')) {
-             // We assume "我们俩" folder check is done in parent or we can do it here if we had folders
-             // For simplicity, we rely on parent to handle "520" specific filtering if it wants,
-             // or we just return defaultPhotos (which might be filtered by parent).
-             // But actually, the previous logic was complex.
-             // Let's return defaultPhotos (which the parent should filter for 520)
-             return defaultPhotos;
-          }
-          return searchResults;
+      // If NO search query, return default photos (ALL photos)
+      if (!searchQuery || searchQuery.length < 2) {
+          return defaultPhotos;
       }
-      return defaultPhotos;
+
+      // If search query exists, we MUST return search results ONLY.
+      // Even if results are empty.
+      
+      // Requirement 1: "520" -> "我们俩" album only
+      if (searchQuery.includes('520')) {
+          const loveFolder = folders.find(f => f.name === '我们俩' || f.name === 'Us' || f.name === 'Love');
+          if (loveFolder) {
+              return allPhotos.filter(p => p.folder === loveFolder.id);
+          }
+          return [];
+      }
+
+      // Requirement 3: Local Text Search (Description, Date, Location)
+      const lowerQuery = searchQuery.toLowerCase();
+      const localMatches = allPhotos.filter(p => {
+          if (p.description && p.description.toLowerCase().includes(lowerQuery)) return true;
+          if (p.location?.name && p.location.name.toLowerCase().includes(lowerQuery)) return true;
+          if (p.date && p.date.includes(lowerQuery)) return true;
+          if (p.aiTags && p.aiTags.some(t => t.toLowerCase().includes(lowerQuery))) return true;
+          return false;
+      });
+
+      // Combine Local + AI Results
+      const localIds = new Set(localMatches.map(p => p.id));
+      const newAiResults = aiResults.filter(p => !localIds.has(p.id));
+      
+      let combined = [...localMatches, ...newAiResults];
+
+      // Requirement 2: Scope Search (Current Album Only)
+      if (folderId) {
+          combined = combined.filter(p => p.folder === folderId);
+      }
+
+      return combined;
   };
 
   return {
       searchQuery,
       setSearchQuery,
       isSearching,
-      searchResults,
       getDisplayPhotos
   };
 }
