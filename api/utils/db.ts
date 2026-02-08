@@ -1,20 +1,66 @@
 import { Env, Metadata } from '../types';
 
-export async function getMetadataFromD1(env: Env): Promise<Metadata> {
-  // Parallel queries for efficiency
-  const [
-    configResults,
-    folderResults,
-    photoResults,
-    visitorResults,
-    accessResults
-  ] = await Promise.all([
+export async function getMetadataFromD1(env: Env, page?: number, pageSize?: number, viewMode: string = 'normal', folderId?: string): Promise<Metadata> {
+  // If page/pageSize are not provided or invalid, we default to ALL (or a very large number)
+  // However, the caller usually provides defaults.
+  // The user requested to "discard the pagination scheme".
+  // So we should ignore page/pageSize for the main query or set them to max.
+  // But wait, "viewMode" and "folderId" are still useful for initial filtering if we want.
+  // But the user said "fetchData seems to fetch all photo data at once... I request to change back to previous logic".
+  // Previous logic likely returned ALL active photos.
+  
+  const limit = 100000; // Effectively no limit for now
+  const offset = 0;
+
+  let whereClause = 'WHERE 1=1';
+  const params: any[] = [];
+
+  // Filter Logic - Keep this for optimization?
+  // If we want to return ALL data for client-side handling, we should only filter `deleted_at`.
+  // If `viewMode` is 'trash', we fetch trash.
+  // If `viewMode` is 'normal', we fetch active.
+  // But if we want to switch between albums instantly, we need ALL active photos regardless of folderId.
+  // So if viewMode is 'normal', we should ignore folderId in the SQL query and let client filter.
+  
+  if (viewMode === 'trash') {
+      whereClause += ' AND deleted_at IS NOT NULL';
+  } else {
+      whereClause += ' AND deleted_at IS NULL';
+      // Ignore folderId here so we get ALL active photos for client-side filtering
+      // if (folderId) ...
+  }
+
+  // Parallel queries
+  const promises: any[] = [
+    // 1. Photos (All matching viewMode)
+    env.DB.prepare(`SELECT * FROM photos ${whereClause} ORDER BY taken_at DESC, uploaded_at DESC LIMIT ? OFFSET ?`)
+      .bind(...params, limit, offset)
+      .all()
+  ];
+
+  // 2. Always fetch metadata since we are doing a full load
+  promises.push(
     env.DB.prepare('SELECT * FROM config').all(),
     env.DB.prepare('SELECT * FROM folders ORDER BY created_at').all(),
-    env.DB.prepare('SELECT * FROM photos ORDER BY uploaded_at DESC').all(),
     env.DB.prepare('SELECT * FROM visitors').all(),
-    env.DB.prepare('SELECT * FROM visitor_folder_access').all()
-  ]);
+    env.DB.prepare('SELECT * FROM visitor_folder_access').all(),
+    // We can still return counts if useful, or client can count.
+    // Let's return them for compatibility.
+    env.DB.prepare('SELECT COUNT(*) as count FROM photos WHERE deleted_at IS NULL').first(), // Global Total
+    env.DB.prepare('SELECT COUNT(*) as count FROM photos WHERE deleted_at IS NOT NULL').first(), // Trash
+    env.DB.prepare('SELECT COUNT(*) as count FROM photos WHERE is_favorite = 1 AND deleted_at IS NULL').first() // Favorites
+  );
+
+  const results = await Promise.all(promises);
+  
+  const photoResults = results[0];
+  const configResults = results[1];
+  const folderResults = results[2];
+  const visitorResults = results[3];
+  const accessResults = results[4];
+  const globalCountResult = results[5];
+  const trashCountResult = results[6];
+  const favCountResult = results[7];
 
   // Process Config
   const config: any = {};
@@ -23,14 +69,6 @@ export async function getMetadataFromD1(env: Env): Promise<Metadata> {
         config[row.key] = row.value;
     });
   }
-
-  // Process Folders
-  const folders: any[] = folderResults.results ? folderResults.results.map((f: any) => ({
-    id: f.id,
-    name: f.name,
-    createdAt: f.created_at,
-    photoCount: 0 // Will calculate below
-  })) : [];
 
   // Process Photos
   const photos: any[] = photoResults.results ? photoResults.results.map((p: any) => ({
@@ -46,7 +84,6 @@ export async function getMetadataFromD1(env: Env): Promise<Metadata> {
     width: p.width,
     height: p.height,
     date: p.taken_at,
-    // New fields
     blurhash: p.blurhash,
     location: (p.location_lat && p.location_lng) ? {
       lat: p.location_lat,
@@ -59,16 +96,21 @@ export async function getMetadataFromD1(env: Env): Promise<Metadata> {
     originalSize: p.original_size
   })) : [];
 
-  // Calculate Counts (Only non-deleted photos count)
-  const folderCounts: Record<string, number> = {};
-  photos.forEach((p: any) => {
-    if (!p.deletedAt) {
-        folderCounts[p.folder] = (folderCounts[p.folder] || 0) + 1;
-    }
+  // Calculate folder counts from the photos list (since we have all of them)
+  const folderCountMap: Record<string, number> = {};
+  photos.forEach(p => {
+      if (p.folder) {
+          folderCountMap[p.folder] = (folderCountMap[p.folder] || 0) + 1;
+      }
   });
-  folders.forEach((f: any) => {
-    f.photoCount = folderCounts[f.id] || 0;
-  });
+
+  // Process Folders
+  const folders: any[] = folderResults.results ? folderResults.results.map((f: any) => ({
+    id: f.id,
+    name: f.name,
+    createdAt: f.created_at,
+    photoCount: folderCountMap[f.id] || 0
+  })) : [];
 
   // Process Visitors
   const accessMap: Record<string, string[]> = {};
@@ -87,14 +129,110 @@ export async function getMetadataFromD1(env: Env): Promise<Metadata> {
   })) : [];
 
   return {
-    version: '2.0', // D1 backed
+    version: '2.0',
     lastUpdated: new Date().toISOString(),
     config,
     folders,
+    visitors,
     photos,
-    visitors
-  };
+    // Pagination metadata - returning "fake" full pagination
+    pagination: {
+       page: 1,
+       pageSize: limit,
+       total: photos.length,
+       hasMore: false
+    },
+    counts: {
+        trash: (trashCountResult as any).count,
+        favorites: (favCountResult as any).count,
+        total: (globalCountResult as any).count
+    }
+   } as any;
+ }
+
+// Search Helper
+export async function searchPhotosInD1(env: Env, query: string, limit: number = 50, folderId?: string) {
+  let sql = 'SELECT * FROM photos WHERE deleted_at IS NULL';
+  const params: any[] = [];
+
+  if (folderId) {
+    sql += ' AND folder_id = ?';
+    params.push(folderId);
+  }
+
+  // Simple SQL Search
+  sql += ` AND (
+    description LIKE ? OR 
+    location_name LIKE ? OR 
+    ai_tags LIKE ? OR 
+    taken_at LIKE ?
+  )`;
+  const likeQuery = `%${query}%`;
+  params.push(likeQuery, likeQuery, likeQuery, likeQuery);
+
+  sql += ' ORDER BY taken_at DESC LIMIT ?';
+  params.push(limit);
+
+  const results = await env.DB.prepare(sql).bind(...params).all();
+  
+  return results.results ? results.results.map((p: any) => ({
+    id: p.id,
+    folder: p.folder_id,
+    filename: p.filename,
+    url: p.url,
+    thumbnailUrl: p.thumbnail_url,
+    description: p.description,
+    uploadedAt: p.uploaded_at,
+    deletedAt: p.deleted_at,
+    isFavorite: !!p.is_favorite,
+    width: p.width,
+    height: p.height,
+    date: p.taken_at,
+    blurhash: p.blurhash,
+    location: (p.location_lat && p.location_lng) ? {
+      lat: p.location_lat,
+      lng: p.location_lng,
+      name: p.location_name
+    } : undefined,
+    aiTags: p.ai_tags ? p.ai_tags.split(',') : [],
+    aiDescription: p.ai_description,
+    hasOriginal: !!p.has_original,
+    originalSize: p.original_size
+  })) : [];
 }
+
+export async function getPhotosByIds(env: Env, ids: string[]) {
+  if (ids.length === 0) return [];
+  // SQLite limit for host parameters is usually high, but let's be safe
+  const placeholders = ids.map(() => '?').join(',');
+  const results = await env.DB.prepare(`SELECT * FROM photos WHERE id IN (${placeholders})`).bind(...ids).all();
+  
+  return results.results ? results.results.map((p: any) => ({
+    id: p.id,
+    folder: p.folder_id,
+    filename: p.filename,
+    url: p.url,
+    thumbnailUrl: p.thumbnail_url,
+    description: p.description,
+    uploadedAt: p.uploaded_at,
+    deletedAt: p.deleted_at,
+    isFavorite: !!p.is_favorite,
+    width: p.width,
+    height: p.height,
+    date: p.taken_at,
+    blurhash: p.blurhash,
+    location: (p.location_lat && p.location_lng) ? {
+      lat: p.location_lat,
+      lng: p.location_lng,
+      name: p.location_name
+    } : undefined,
+    aiTags: p.ai_tags ? p.ai_tags.split(',') : [],
+    aiDescription: p.ai_description,
+    hasOriginal: !!p.has_original,
+    originalSize: p.original_size
+  })) : [];
+}
+
 
 export async function getConfig(env: Env) {
     const results = await env.DB.prepare('SELECT * FROM config').all();

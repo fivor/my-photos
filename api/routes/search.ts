@@ -67,12 +67,21 @@ export async function handleSearchRoutes(request: Request, env: Env, path: strin
             // We request top K results
             const matches = await env.VECTORIZE.query(vectorData, { topK: limit, returnMetadata: true });
             
-            // 3. Return IDs (Frontend can filter photos by these IDs)
+            // 3. Fetch Full Photo Details
+            const ids = matches.matches.map(m => m.id);
+            const photos = await import('../utils/db').then(db => db.getPhotosByIds(env, ids));
+
+            // Attach scores and sort
+            const resultsWithScore = photos.map(p => {
+                const match = matches.matches.find(m => m.id === p.id);
+                return {
+                    ...p,
+                    _score: match ? match.score : 0
+                };
+            }).sort((a, b) => b._score - a._score);
+
             return jsonResponse({
-                results: matches.matches.map(m => ({
-                    id: m.id,
-                    score: m.score
-                })),
+                results: resultsWithScore,
                 debug: {
                     originalQuery: query,
                     finalQuery,

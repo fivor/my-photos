@@ -247,7 +247,7 @@ export async function handleUploadRoutes(request: Request, env: Env, path: strin
                 // D. Compression (Only if we decoded successfully)
                 if (imageData && originalSize > 1024 * 1024) {
                    try {
-                       const MAX_DIM = 1600;
+                       const MAX_DIM = 1920; // Increased to 1920px for better preview
                        let finalImage = imageData;
                        const { width, height } = imageData;
                        

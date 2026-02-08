@@ -1,11 +1,10 @@
-import React, { useEffect, useState, useMemo } from 'react';
+import React, { useMemo, useState, useEffect } from 'react';
 import { useAuth } from '../context/AuthContext';
 import { useConfig } from '../context/ConfigContext';
 import { useTheme } from '../hooks/useTheme';
-import { LogOut, Settings as SettingsIcon, Upload as UploadIcon, Folder as FolderIcon, Sun, Moon, CheckSquare, Trash2, FolderInput, X, Search, ChevronRight, ChevronDown, Menu, Heart, RotateCcw, Clock, Download, Map, User } from 'lucide-react';
+import { LogOut, Settings as SettingsIcon, Upload as UploadIcon, Sun, Moon, CheckSquare, Trash2, FolderInput, X, Search, Menu, User, RotateCcw, Download } from 'lucide-react';
 import { Link, useParams, useLocation, useNavigate } from 'react-router-dom';
 import { apiRequest } from '../utils/api';
-import { Photo, Folder, Metadata } from '../types';
 import Timeline from '../components/Timeline';
 import ConfirmModal from '../components/ConfirmModal';
 import { format } from 'date-fns';
@@ -14,10 +13,14 @@ import { saveAs } from 'file-saver';
 import Sidebar from '../components/Sidebar';
 import MapView from '../components/MapView';
 import Memories from '../components/Memories';
+import { usePhotoData } from '../hooks/usePhotoData';
+import { usePhotoSearch } from '../hooks/usePhotoSearch';
+import { useSelection } from '../hooks/useSelection';
+import { SearchEasterEgg, Slogan } from '../components/EasterEggs';
 
 export default function Gallery() {
   const { logout, role, token: authToken } = useAuth();
-  const { t, siteTitle } = useConfig();
+  const { siteTitle } = useConfig();
   const { theme, toggleTheme } = useTheme();
   const { id: folderId } = useParams();
   const location = useLocation();
@@ -31,14 +34,42 @@ export default function Gallery() {
     return 'normal';
   }, [location.pathname]);
 
-  const [photos, setPhotos] = useState<Photo[]>([]);
-  const [folders, setFolders] = useState<Folder[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState('');
+  // Hooks
+  const { 
+      photos, 
+      allPhotos, 
+      folders, 
+      loading, 
+      error, 
+      loadMore, 
+      refresh, 
+      setPhotos,
+      counts
+  } = usePhotoData(folderId, viewMode);
+
+  const { 
+      searchQuery, 
+      setSearchQuery, 
+      isSearching, 
+      getDisplayPhotos 
+  } = usePhotoSearch(photos, folderId);
+
+  const {
+      isSelectionMode,
+      setIsSelectionMode,
+      selectedIds,
+      setSelectedIds,
+      toggleSelectionMode,
+      toggleSelect,
+      selectAll,
+      clearSelection
+  } = useSelection();
+
+  // Derived State
+  const displayPhotos = getDisplayPhotos(photos);
   
   // Sidebar State
-  const [sidebarOpen, setSidebarOpen] = useState(false); // Mobile sidebar
-  const [searchQuery, setSearchQuery] = useState('');
+  const [sidebarOpen, setSidebarOpen] = useState(false);
   const [expandedFolders, setExpandedFolders] = useState(true);
   const [isLightboxOpen, setIsLightboxOpen] = useState(false);
   const [targetPhotoId, setTargetPhotoId] = useState<string | null>(null);
@@ -50,13 +81,6 @@ export default function Gallery() {
     }
   }, [isLightboxOpen]);
   
-  // Data State
-  const [allPhotos, setAllPhotos] = useState<Photo[]>([]);
-
-  // Batch Selection State
-  const [isSelectionMode, setIsSelectionMode] = useState(false);
-  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
-
   // Modal State
   const [confirmModal, setConfirmModal] = useState<{
     isOpen: boolean;
@@ -67,226 +91,7 @@ export default function Gallery() {
   const [isSearchExpanded, setIsSearchExpanded] = useState(false);
   const [userMenuOpen, setUserMenuOpen] = useState(false);
 
-  useEffect(() => {
-    const load = async () => {
-      // 1. Try to load from cache first
-      const cached = localStorage.getItem('gallery_cache');
-      let hasCache = false;
-      
-      // Only use cache if we don't have data yet (or to show it immediately on mount)
-      if (cached && allPhotos.length === 0) {
-        try {
-          const data = JSON.parse(cached);
-          if (data && Array.isArray(data.photos)) {
-            setAllPhotos(data.photos);
-            const sortedFolders = data.folders.sort((a: any, b: any) => 
-              a.name.localeCompare(b.name, 'zh-Hans-CN', { sensitivity: 'accent' })
-            );
-            setFolders(sortedFolders);
-            setLoading(false);
-            hasCache = true;
-          }
-        } catch (e) {
-          console.error('Cache parse error', e);
-        }
-      }
-
-      // 2. Fetch fresh data
-      await fetchData(hasCache || allPhotos.length > 0);
-    };
-    
-    load();
-  }, [folderId, location.key, viewMode]);
-
-  const fetchData = async (silent = false) => {
-    try {
-      if (!silent) {
-        setLoading(true);
-        // Force reset lightbox state when reloading data to prevent UI sync issues
-        setIsLightboxOpen(false);
-      }
-      const data: Metadata = await apiRequest('/data');
-      
-      // Update Cache
-      try {
-        localStorage.setItem('gallery_cache', JSON.stringify(data));
-      } catch (e) {
-        // Ignore cache errors (e.g. quota exceeded)
-        console.warn('Failed to save cache', e);
-      }
-
-      // Store all photos
-      if (data && Array.isArray(data.photos)) {
-        setAllPhotos(data.photos);
-      }
-      
-      // Sort folders by pinyin
-      const sortedFolders = data.folders.sort((a, b) => 
-        a.name.localeCompare(b.name, 'zh-Hans-CN', { sensitivity: 'accent' })
-      );
-
-      setFolders(sortedFolders);
-    } catch (err: any) {
-      console.error('Fetch error', err);
-      // Only show full page error if we have no data
-      if (allPhotos.length === 0) {
-        setError(err.message || 'Failed to load photos');
-      }
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  // Filter Photos logic
-  useEffect(() => {
-    let res = allPhotos;
-
-    // 1. View Mode Filter
-    if (viewMode === 'trash') {
-       res = res.filter(p => p.deletedAt);
-    } else if (viewMode === 'favorites') {
-       res = res.filter(p => !p.deletedAt && p.isFavorite);
-    } else {
-       res = res.filter(p => !p.deletedAt);
-    }
-
-    // 2. Search & Folder Filter
-    if (searchQuery) {
-       // Check if it's a semantic search (e.g. starts with "semantic:" or just handle standard)
-       // For now, we mix both. We can add a toggle in UI later.
-       // OR we can try to fetch from /api/search first if no local match?
-       // The current implementation is PURE LOCAL filtering.
-       // To enable vector search, we need to call API.
-       
-       // BUT, to avoid too many API calls while typing, we should debounce or use "Enter" to search.
-       // For this "pair programming" task, I will keep the local search for now, 
-       // AND add a "Search with AI" logic if local results are few or user presses specific key?
-       // Let's implement a simple integration:
-       // The Sidebar input updates `searchQuery`. 
-       // We can check if `searchQuery` matches any photo.
-       
-       const lowerQ = searchQuery.toLowerCase();
-       res = res.filter(p => {
-          const dateStr = p.date || p.uploadedAt;
-          const tags = p.aiTags || [];
-          const tagMatch = tags.some((t: string) => t.toLowerCase().includes(lowerQ));
-          
-          return (
-            p.description?.toLowerCase().includes(lowerQ) ||
-            p.location?.name?.toLowerCase().includes(lowerQ) ||
-            tagMatch ||
-            dateStr.includes(lowerQ)
-          );
-       });
-    } else {
-       // Only apply folder filter if NO search
-       if (folderId && viewMode === 'normal') {
-          res = res.filter(p => p.folder === folderId);
-       }
-    }
-    
-    setPhotos(res);
-  }, [allPhotos, viewMode, folderId, searchQuery]);
-
-  const [isSearching, setIsSearching] = useState(false);
-
-  // Vector Search Effect
-  useEffect(() => {
-    // Only search if query is long enough and stable
-    if (!searchQuery || searchQuery.length < 2) {
-        setIsSearching(false);
-        // Do NOT reset photos here. The first useEffect handles the "no search" case correctly
-        // by applying folder/viewMode filters.
-        return;
-    }
-    
-    setIsSearching(true);
-    const timer = setTimeout(async () => {
-        try {
-            console.log('Searching for:', searchQuery);
-            const res = await apiRequest<{ results: { id: string, score: number }[], debug: any }>('/search', {
-                method: 'POST',
-                body: JSON.stringify({ query: searchQuery })
-            });
-            console.log('Search results:', res);
-            
-            if (res.results && res.results.length > 0) {
-                setPhotos(prev => {
-                    // Filter matches with a reasonable threshold (e.g. 0.45)
-                    // The BGE model cosine similarity usually ranges 0.3-0.8 for relevant stuff.
-                    // User requested > 60%
-                    const threshold = 0.60; 
-                    const validMatches = res.results.filter(r => r.score > threshold);
-                    
-                    if (validMatches.length === 0) {
-                        // If AI found nothing relevant, but we have local results (from filter above),
-                        // we should keep local results.
-                        // If we are here, `photos` (prev) already contains local matches because of the first useEffect.
-                        return prev; 
-                    }
-                    
-                    // We want to PRIORITIZE semantic matches, but keep existing local matches if any?
-                    // Actually, usually user wants to see what they searched for.
-                    // If local filter found nothing, we show semantic.
-                    // If local filter found something (e.g. "bus" tag), we should MERGE.
-                    
-                    const newPhotos: Photo[] = [];
-                    
-                    // 1. Add semantic matches (sorted by score)
-                    validMatches.forEach(match => {
-                        const p = allPhotos.find(photo => photo.id === match.id);
-                        if (p && !p.deletedAt) { 
-                           // Clone and attach score
-                           newPhotos.push({ ...p, _score: match.score });
-                        }
-                    });
-                    
-                    // 2. Merge with existing local results (avoid duplicates)
-                    const existingIds = new Set(newPhotos.map(p => p.id));
-                    const currentLocalResults = prev;
-                    
-                    currentLocalResults.forEach(p => {
-                        if (!existingIds.has(p.id)) {
-                            newPhotos.push(p);
-                        }
-                    });
-                    
-                    return newPhotos;
-                });
-            }
-        } catch (e) {
-            console.error("Vector search error", e);
-        } finally {
-            setIsSearching(false);
-        }
-    }, 800); // 800ms debounce
-    
-    return () => clearTimeout(timer);
-  }, [searchQuery, allPhotos]); // Dependency on allPhotos ensures we can look up IDs
-
-  // Counts derived from allPhotos
-  const totalPhotosCount = useMemo(() => allPhotos.filter(p => !p.deletedAt).length, [allPhotos]);
-  const favoritesCount = useMemo(() => allPhotos.filter(p => !p.deletedAt && p.isFavorite).length, [allPhotos]);
-  const trashCount = useMemo(() => allPhotos.filter(p => p.deletedAt).length, [allPhotos]);
-
-  // Filtered folders based on search (for Sidebar only usually)
-  // We keep `folders` as all folders.
-
-  const toggleSelectionMode = () => {
-    setIsSelectionMode(!isSelectionMode);
-    setSelectedIds(new Set());
-  };
-
-  const handleSelectPhoto = (id: string) => {
-    const newSelected = new Set(selectedIds);
-    if (newSelected.has(id)) {
-      newSelected.delete(id);
-    } else {
-      newSelected.add(id);
-    }
-    setSelectedIds(newSelected);
-  };
-
+  // Actions
   const handleToggleFavorite = async (id: string) => {
     if (!authToken) {
       if (confirm('收藏功能需要登录，是否前往登录？')) {
@@ -299,10 +104,9 @@ export default function Gallery() {
     const photo = photos.find(p => p.id === id);
     const newIsFavorite = photo ? !photo.isFavorite : true;
 
-    // Update local state (both photos and allPhotos)
-    const updateList = (list: Photo[]) => list.map(p => p.id === id ? { ...p, isFavorite: newIsFavorite } : p);
+    // Update local state
+    const updateList = (list: any[]) => list.map(p => p.id === id ? { ...p, isFavorite: newIsFavorite } : p);
     setPhotos(prev => updateList(prev));
-    setAllPhotos(prev => updateList(prev));
 
     try {
       await apiRequest('/data', {
@@ -314,25 +118,16 @@ export default function Gallery() {
       });
     } catch (e) {
       console.error('Failed to toggle favorite', e);
-      // Revert
-      const revertList = (list: Photo[]) => list.map(p => p.id === id ? { ...p, isFavorite: !newIsFavorite } : p);
-      setPhotos(prev => revertList(prev));
-      setAllPhotos(prev => revertList(prev));
+      refresh(); // Revert by refresh
     }
   };
 
-  const handleUpdatePhotoDetail = async (id: string, updates: Partial<Photo>) => {
+  const handleUpdatePhotoDetail = async (id: string, updates: any) => {
     // Optimistic Update
-    const updateList = (list: Photo[]) => list.map(p => p.id === id ? { ...p, ...updates } : p);
+    const updateList = (list: any[]) => list.map(p => p.id === id ? { ...p, ...updates } : p);
     setPhotos(prev => updateList(prev));
-    setAllPhotos(prev => updateList(prev));
 
     try {
-      // Fetch full object first (since we need to send full object to updatePhotoInD1 currently, 
-      // or we can just send the ID and updates if we adjust backend logic. 
-      // But update_photos action expects a photo object.
-      // Let's check `api/index.ts`. It calls `updatePhotoInD1(env, photo)`.
-      // `updatePhotoInD1` updates ALL fields. So we MUST merge with existing.
       const currentPhoto = photos.find(p => p.id === id);
       if (!currentPhoto) return;
       
@@ -347,9 +142,7 @@ export default function Gallery() {
       });
     } catch (e) {
       console.error('Failed to update photo details', e);
-      // Revert is complex without keeping previous state history, 
-      // but for simple text edits, we can probably just ignore or refetch.
-      await fetchData(true); // Silent refetch to restore truth
+      refresh();
     }
   };
 
@@ -359,7 +152,7 @@ export default function Gallery() {
         method: 'POST',
         body: JSON.stringify({ action: 'restore_photo', data: { id } })
       });
-      await fetchData();
+      refresh();
     } catch (e) {
       alert('恢复失败');
     }
@@ -375,7 +168,7 @@ export default function Gallery() {
             method: 'POST',
             body: JSON.stringify({ action: 'delete_photo_forever', data: { id } })
           });
-          await fetchData();
+          refresh();
         } catch (e) {
           alert('永久删除失败');
         }
@@ -390,21 +183,20 @@ export default function Gallery() {
       message: '温馨提示：确定要删除这张照片吗？',
       onConfirm: async () => {
         try {
-          setLoading(true);
           await apiRequest('/data', {
             method: 'POST',
             body: JSON.stringify({ action: 'delete_photo', data: { id } })
           });
-          await fetchData();
+          refresh();
         } catch (e) {
           alert('删除照片失败');
-          setLoading(false);
         }
         setConfirmModal(prev => ({ ...prev, isOpen: false }));
       }
     });
   };
 
+  // Batch Actions
   const handleBatchDelete = () => {
     if (selectedIds.size === 0) return;
     
@@ -413,7 +205,6 @@ export default function Gallery() {
       message: `温馨提示：确定要删除选中的 ${selectedIds.size} 张照片吗？`,
       onConfirm: async () => {
         try {
-          setLoading(true);
           await apiRequest('/data', {
             method: 'POST',
             body: JSON.stringify({ 
@@ -421,12 +212,11 @@ export default function Gallery() {
               data: { ids: Array.from(selectedIds) } 
             })
           });
-          await fetchData();
+          refresh();
+          clearSelection();
           setIsSelectionMode(false);
-          setSelectedIds(new Set());
         } catch (e) {
           alert('批量删除失败');
-          setLoading(false);
         }
         setConfirmModal(prev => ({ ...prev, isOpen: false }));
       }
@@ -441,7 +231,6 @@ export default function Gallery() {
       message: `温馨提示：确定要将 ${selectedIds.size} 张照片移动到该相册吗？`,
       onConfirm: async () => {
         try {
-          setLoading(true);
           await apiRequest('/data', {
             method: 'POST',
             body: JSON.stringify({ 
@@ -452,12 +241,11 @@ export default function Gallery() {
               } 
             })
           });
-          await fetchData();
+          refresh();
+          clearSelection();
           setIsSelectionMode(false);
-          setSelectedIds(new Set());
         } catch (e) {
           alert('批量移动失败');
-          setLoading(false);
         }
         setConfirmModal(prev => ({ ...prev, isOpen: false }));
       }
@@ -467,7 +255,6 @@ export default function Gallery() {
   const handleBatchDownload = async () => {
     if (selectedIds.size === 0) return;
     
-    setLoading(true);
     try {
       const zip = new JSZip();
       const selectedPhotos = photos.filter(p => selectedIds.has(p.id));
@@ -489,13 +276,11 @@ export default function Gallery() {
       const dateStr = format(new Date(), 'yyyy-MM-dd_HH-mm');
       saveAs(content, `photos_${dateStr}.zip`);
       
+      clearSelection();
       setIsSelectionMode(false);
-      setSelectedIds(new Set());
     } catch (e) {
       console.error('Batch download failed', e);
       alert('批量下载失败，请重试');
-    } finally {
-      setLoading(false);
     }
   };
 
@@ -507,7 +292,6 @@ export default function Gallery() {
       message: `温馨提示：确定要恢复选中的 ${selectedIds.size} 张照片吗？`,
       onConfirm: async () => {
         try {
-          setLoading(true);
           const promises = Array.from(selectedIds).map(id => 
             apiRequest('/data', {
               method: 'POST',
@@ -515,12 +299,11 @@ export default function Gallery() {
             })
           );
           await Promise.all(promises);
-          await fetchData();
+          refresh();
+          clearSelection();
           setIsSelectionMode(false);
-          setSelectedIds(new Set());
         } catch (e) {
           alert('批量恢复失败');
-          setLoading(false);
         }
         setConfirmModal(prev => ({ ...prev, isOpen: false }));
       }
@@ -535,7 +318,6 @@ export default function Gallery() {
       message: `温馨提示：确定要永久删除选中的 ${selectedIds.size} 张照片吗？此操作无法撤销！`,
       onConfirm: async () => {
         try {
-          setLoading(true);
           await apiRequest('/data', {
             method: 'POST',
             body: JSON.stringify({ 
@@ -543,12 +325,11 @@ export default function Gallery() {
               data: { ids: Array.from(selectedIds) } 
             })
           });
-          await fetchData();
+          refresh();
+          clearSelection();
           setIsSelectionMode(false);
-          setSelectedIds(new Set());
         } catch (e) {
           alert('批量永久删除失败');
-          setLoading(false);
         }
         setConfirmModal(prev => ({ ...prev, isOpen: false }));
       }
@@ -568,15 +349,15 @@ export default function Gallery() {
       if (e.key === 'Escape') {
         if (isSelectionMode) {
           setIsSelectionMode(false);
-          setSelectedIds(new Set());
+          clearSelection();
         }
       }
 
       if ((e.metaKey || e.ctrlKey) && e.key === 'a') {
         e.preventDefault();
         if (!isSelectionMode) setIsSelectionMode(true);
-        const allIds = new Set(photos.map(p => p.id));
-        setSelectedIds(allIds);
+        const allIds = displayPhotos.map(p => p.id);
+        selectAll(allIds);
       }
 
       if (e.key.toLowerCase() === 'f') {
@@ -595,17 +376,18 @@ export default function Gallery() {
 
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [isSelectionMode, selectedIds, photos, handleBatchDelete, handleToggleFavorite]);
+  }, [isSelectionMode, selectedIds, displayPhotos, handleBatchDelete, handleToggleFavorite]);
 
   return (
     <div className="h-screen bg-white dark:bg-gray-900 text-gray-900 dark:text-white flex flex-col transition-colors duration-200 overflow-hidden">
+      {/* Easter Eggs */}
+      <SearchEasterEgg searchQuery={searchQuery} />
+
       {/* Top Navigation Bar */}
       <nav className="border-b border-gray-200 dark:border-gray-800 bg-white dark:bg-gray-900 z-50 flex-shrink-0 relative">
         <div className="max-w-full px-4 h-14 flex justify-between items-center relative">
           {/* Slogan */}
-          <div className="absolute left-1/2 top-1/2 transform -translate-x-1/2 -translate-y-1/2 hidden md:block pointer-events-none">
-            <span className="text-[14px] text-[#595959] font-sans">拾光为念，相纸凝成诗行，岁月留芳</span>
-          </div>
+          <Slogan />
 
           <div className="flex items-center gap-4">
             <button 
@@ -639,8 +421,6 @@ export default function Gallery() {
           </div>
           
           <div className="flex items-center gap-2">
-             {/* Map Toggle - REMOVED (Moved to Sidebar) */}
-
             {/* Search Bar */}
             <div className={`flex items-center transition-all duration-300 mr-1 ${isSearchExpanded ? 'w-40 sm:w-64' : 'w-10'}`}>
                {isSearchExpanded ? (
@@ -684,7 +464,6 @@ export default function Gallery() {
               </Link>
             )}
             
-            {/* Mobile Upload Icon (if needed, but user said "Upload Button" should be big, let's keep text on desktop) */}
             {(role === 'admin' || role === 'visitor') && (
               <Link to="/upload" className="sm:hidden p-2 hover:bg-gray-100 dark:hover:bg-gray-800 rounded-full text-gray-600 dark:text-gray-400 transition-colors">
                 <UploadIcon size={18} />
@@ -698,18 +477,15 @@ export default function Gallery() {
                   className="flex items-center gap-2 p-2 hover:bg-gray-100 dark:hover:bg-gray-800 rounded-full transition-colors"
                 >
                   <div className="w-8 h-8 rounded-full bg-gray-200 dark:bg-gray-700 flex items-center justify-center text-gray-600 dark:text-gray-300 overflow-hidden">
-                     {/* Use User icon or Avatar */}
                      <User size={20} />
                   </div>
                 </button>
 
                 {userMenuOpen && (
                     <>
-                      {/* Backdrop to close */}
                       <div className="fixed inset-0 z-[9998]" onClick={() => setUserMenuOpen(false)}></div>
                       
                       <div className="absolute right-0 top-full mt-2 w-48 bg-white dark:bg-gray-800 rounded-lg shadow-xl border border-gray-200 dark:border-gray-700 py-1 z-[9999] animate-fade-in-up">
-                          {/* Role Header */}
                           {role && (
                             <div className="px-4 py-2 border-b border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-800/50">
                                 <p className="text-xs font-bold text-gray-500 dark:text-gray-400 uppercase tracking-wider">
@@ -718,7 +494,6 @@ export default function Gallery() {
                             </div>
                           )}
 
-                          {/* Theme Toggle */}
                           <button 
                              onClick={() => { toggleTheme(); setUserMenuOpen(false); }}
                              className="w-full text-left px-4 py-2.5 text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 flex items-center gap-3 transition-colors"
@@ -727,7 +502,6 @@ export default function Gallery() {
                              {theme === 'dark' ? '日间模式' : '夜间模式'}
                           </button>
 
-                          {/* Multi-select (Admin only) */}
                           {role === 'admin' && (
                              <button 
                                onClick={() => { toggleSelectionMode(); setUserMenuOpen(false); }}
@@ -738,7 +512,6 @@ export default function Gallery() {
                              </button>
                           )}
 
-                          {/* Settings (Admin only) */}
                           {role === 'admin' && (
                              <Link 
                                to="/settings" 
@@ -752,7 +525,6 @@ export default function Gallery() {
 
                           <div className="h-px bg-gray-200 dark:bg-gray-700 my-1"></div>
 
-                          {/* Logout */}
                           {role ? (
                              <button 
                                onClick={() => { handleLogout(); setUserMenuOpen(false); }}
@@ -788,9 +560,9 @@ export default function Gallery() {
           setSearchQuery={setSearchQuery}
           viewMode={viewMode}
           folderId={folderId}
-          favoritesCount={favoritesCount}
-          totalPhotosCount={totalPhotosCount}
-          trashCount={trashCount}
+          favoritesCount={counts?.favorites || 0}
+          totalPhotosCount={counts?.total || 0}
+          trashCount={counts?.trash || 0}
           role={role}
           folders={folders}
           expandedFolders={expandedFolders}
@@ -800,7 +572,7 @@ export default function Gallery() {
         {/* Main Content (Photo Grid or Map) */}
         <main className="flex-1 overflow-hidden bg-white dark:bg-black relative" id="scroll-container">
           <div className="h-full">
-            {loading ? (
+            {loading && photos.length === 0 ? (
               <div className="flex justify-center py-20">
                 <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-gray-900 dark:border-white"></div>
               </div>
@@ -810,24 +582,24 @@ export default function Gallery() {
               </div>
             ) : (
               viewMode === 'map' ? (
-                 <MapView photos={photos} />
+                 <MapView photos={allPhotos} />
               ) : (
                  <div className="h-full flex flex-col">
                     {/* Memories (Only in All Photos view) */}
                     {!searchQuery && !folderId && viewMode === 'normal' && (
                        <Memories 
-                         photos={allPhotos.filter(p => !p.deletedAt)} 
+                         photos={photos} 
                          onSelectPhoto={(p) => setTargetPhotoId(p.id)} 
                        />
                     )}
                     
                     <Timeline 
-                      photos={photos} 
+                      photos={displayPhotos} 
                       folders={folders} 
-                      onPhotoUpdate={fetchData} 
+                      onPhotoUpdate={refresh} 
                       isSelectionMode={isSelectionMode}
                       selectedIds={selectedIds}
-                      onSelectPhoto={handleSelectPhoto}
+                      onSelectPhoto={toggleSelect}
                       onDelete={handleDelete}
                       viewMode={viewMode}
                       onRestore={handleRestore}
@@ -837,6 +609,7 @@ export default function Gallery() {
                       onLightboxChange={setIsLightboxOpen}
                       targetPhotoId={targetPhotoId}
                       onClearTarget={() => setTargetPhotoId(null)}
+                      isSearching={!!searchQuery}
                     />
                  </div>
               )
@@ -855,7 +628,6 @@ export default function Gallery() {
           <div className="h-6 w-px bg-gray-300 dark:bg-gray-600"></div>
 
           {viewMode === 'trash' ? (
-            // Trash Mode Actions
             <>
               <button 
                 onClick={handleBatchRestore}
@@ -874,14 +646,12 @@ export default function Gallery() {
               </button>
             </>
           ) : (
-            // Normal Mode Actions
             <>
               <div className="relative group flex items-center">
                 <button className="flex items-center gap-2 text-gray-700 dark:text-gray-200 hover:text-blue-600 dark:hover:text-blue-400">
                   <FolderInput size={18} />
                   <span className="text-sm font-medium hidden sm:inline">移动到</span>
                 </button>
-                {/* Dropdown for folders */}
                 <select 
                   className="absolute inset-0 opacity-0 cursor-pointer"
                   onChange={(e) => handleBatchMove(e.target.value)}
@@ -914,7 +684,7 @@ export default function Gallery() {
           
           <div className="h-6 w-px bg-gray-300 dark:bg-gray-600"></div>
 
-          <button onClick={() => setSelectedIds(new Set())} className="text-gray-500 hover:text-gray-700 dark:text-gray-400" title="清空选择">
+          <button onClick={() => { clearSelection(); setIsSelectionMode(false); }} className="text-gray-500 hover:text-gray-700 dark:text-gray-400" title="清空选择">
             <X size={18} />
           </button>
         </div>

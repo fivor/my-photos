@@ -106,7 +106,7 @@ const PhotoOverlayContent = ({ photo, role, onSave }: { photo: Photo, role: stri
               className="bg-transparent text-white text-xs focus:outline-none flex-1 [color-scheme:dark] px-2"
             />
             <div 
-              className="flex items-center gap-1 px-2 border-l border-white/20 cursor-pointer"
+              className="flex items-center gap-1 px-2 cursor-pointer"
               onClick={() => dateInputRef.current?.showPicker()}
             >
                <span className="text-white text-xs hover:text-[#1890ff] transition-colors">日历</span>
@@ -158,7 +158,7 @@ const PhotoOverlayContent = ({ photo, role, onSave }: { photo: Photo, role: stri
   );
 };
 
-export default function Timeline({ photos, folders, onPhotoUpdate, isSelectionMode, selectedIds, onSelectPhoto, onDelete, viewMode = 'normal', onRestore, onDeleteForever, onToggleFavorite, onLightboxChange, targetPhotoId, onClearTarget, onUpdatePhotoDetail }: Props) {
+export default function Timeline({ photos, folders, onPhotoUpdate, isSelectionMode, selectedIds, onSelectPhoto, onDelete, viewMode = 'normal', onRestore, onDeleteForever, onToggleFavorite, onLightboxChange, targetPhotoId, onClearTarget, onUpdatePhotoDetail, isSearching = false }: Props & { isSearching?: boolean }) {
   const { role } = useAuth();
   const { language } = useConfig();
   
@@ -211,14 +211,48 @@ export default function Timeline({ photos, folders, onPhotoUpdate, isSelectionMo
 
   // Group photos by date
   const { groupedPhotos, sortedDates, displayPhotos, flatRows } = useMemo(() => {
-    // Add debug info to photo objects if needed?
-    // We can't easily modify Photo type here.
-    // But we can check if `score` exists on photos (we added it in Gallery.tsx search logic?)
-    // Wait, in Gallery.tsx we created `newPhotos` by filtering `allPhotos`.
-    // We didn't attach the score to the Photo object.
-    // Let's modify Gallery.tsx to attach score!
-    
-    const grouped = photos.reduce((acc, photo) => {
+    if (isSearching) {
+        const searchAll = photos;
+        const searchRows: Array<{ type: 'header', date: string } | { type: 'photos', items: Photo[], date: string }> = [];
+        const title = language === 'zh' ? '搜索结果' : 'Search Results';
+        // Check if all photos belong to "我们俩" folder
+        // We can check if the first photo belongs to it, and assume the rest do if we are in this special mode?
+        // Or better, check if the "520" logic was applied.
+        // But Timeline doesn't know about "520".
+        // Let's rely on the folder name check of the first photo as a heuristic, 
+        // OR just check if the search query was passed? No, we don't have query here.
+        
+        // Let's use the folder name heuristic.
+        // If photos are filtered to "我们俩", display that title.
+        const isLoveAlbum = searchAll.length > 0 && 
+                            searchAll.every(p => {
+                                const folder = folders.find(f => f.id === p.folder);
+                                return folder && folder.name === '我们俩';
+                            });
+
+        const displayTitle = isLoveAlbum ? '我们俩' : '搜索结果';
+        
+        // Just one big group
+        // We can use a dummy date or title
+        searchRows.push({ type: 'header', date: displayTitle });
+        
+        for (let i = 0; i < searchAll.length; i += columns) {
+            searchRows.push({
+                type: 'photos',
+                items: searchAll.slice(i, i + columns),
+                date: displayTitle
+            });
+        }
+        
+        return { 
+            groupedPhotos: { [displayTitle]: searchAll }, 
+            sortedDates: [displayTitle],
+            displayPhotos: searchAll, 
+            flatRows: searchRows 
+        };
+    }
+
+    const dateGrouped = photos.reduce((acc, photo) => {
       // 1. Get raw date string or fallback
       const rawDate = photo.date || photo.uploadedAt;
       let dateKey = '';
@@ -245,25 +279,24 @@ export default function Timeline({ photos, folders, onPhotoUpdate, isSelectionMo
     }, {} as Record<string, Photo[]>);
 
     // Sort photos within each date group by time (descending)
-    Object.keys(grouped).forEach(date => {
-      grouped[date].sort((a, b) => {
+    Object.keys(dateGrouped).forEach(date => {
+      dateGrouped[date].sort((a, b) => {
         const dateA = new Date(a.date || a.uploadedAt).getTime();
         const dateB = new Date(b.date || b.uploadedAt).getTime();
         return dateB - dateA;
       });
     });
 
-    const dates = Object.keys(grouped).sort((a, b) => new Date(b).getTime() - new Date(a).getTime());
+    const dates = Object.keys(dateGrouped).sort((a, b) => new Date(b).getTime() - new Date(a).getTime());
     
-    // Flatten for Lightbox
-    const all = dates.flatMap(date => grouped[date]);
-
+    const allFlat = dates.flatMap(date => dateGrouped[date]);
+    
     // Flatten for Virtuoso
     const rows: Array<{ type: 'header', date: string } | { type: 'photos', items: Photo[], date: string }> = [];
     
     dates.forEach(date => {
       rows.push({ type: 'header', date });
-      const datePhotos = grouped[date];
+      const datePhotos = dateGrouped[date];
       for (let i = 0; i < datePhotos.length; i += columns) {
         rows.push({
           type: 'photos',
@@ -273,7 +306,7 @@ export default function Timeline({ photos, folders, onPhotoUpdate, isSelectionMo
       }
     });
 
-    return { groupedPhotos: grouped, sortedDates: dates, displayPhotos: all, flatRows: rows };
+    return { groupedPhotos: dateGrouped, sortedDates: dates, displayPhotos: allFlat, flatRows: rows };
   }, [photos, columns]);
 
   // Lightbox State
@@ -486,6 +519,16 @@ export default function Timeline({ photos, folders, onPhotoUpdate, isSelectionMo
         className="h-full w-full custom-scrollbar"
         itemContent={(index, row) => {
           if (row.type === 'header') {
+            if (isSearching) {
+                return (
+                  <div className="py-4 px-2 sm:px-4 sticky top-0 z-40 bg-white/90 dark:bg-black/90 backdrop-blur-sm">
+                    <h3 className="text-lg sm:text-xl font-bold text-gray-800 dark:text-gray-100">
+                      Search Results ({photos.length})
+                    </h3>
+                  </div>
+                );
+            }
+
             let parsedDate;
             try {
                 parsedDate = parseISO(row.date);

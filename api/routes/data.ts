@@ -20,8 +20,10 @@ export async function handleDataRoutes(request: Request, env: Env, path: string)
         const user = await verifyToken(request, env);
         if (!user) return errorResponse('Unauthorized', 401);
 
-        // Clean up expired trash on read (optional, but good for maintenance)
+        const url = new URL(request.url);
+        // Clean up expired trash on read (always check or just once? once is fine)
         await db.cleanupExpiredTrashD1(env);
+
         const metadata = await db.getMetadataFromD1(env);
         return jsonResponse(metadata);
       }
