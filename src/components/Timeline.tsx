@@ -5,7 +5,7 @@ import 'react-photo-view/dist/react-photo-view.css';
 import { format, parseISO } from 'date-fns';
 import { getPhotoUrl, isHeic, formatFileSize } from '../utils/image';
 import { useAuth } from '../context/AuthContext';
-import { Check, Download, Share2, Trash2, FolderInput, ZoomIn, ZoomOut, Heart, RotateCcw, AlertTriangle, Edit2, Check as CheckIcon, X as XIcon } from 'lucide-react';
+import { Check, Download, Share2, Trash2, FolderInput, ZoomIn, ZoomOut, Heart, RotateCcw, AlertTriangle, Edit2, Check as CheckIcon, X as XIcon, Calendar } from 'lucide-react';
 import { apiRequest } from '../utils/api';
 import { useConfig } from '../context/ConfigContext';
 import { zhCN, enUS } from 'date-fns/locale';
@@ -89,7 +89,11 @@ const PhotoOverlayContent = ({ photo, role, onSave }: { photo: Photo, role: stri
             className="w-full bg-black/40 text-white rounded p-2 text-sm focus:ring-1 focus:ring-blue-500 outline-none resize-none h-20"
             autoFocus
           />
-          <div className="flex gap-2 items-center">
+          <div className="flex gap-2 items-center bg-black/40 rounded p-1">
+            <div className="flex items-center gap-1 px-2 border-r border-white/20">
+               <Calendar size={14} className="text-white" />
+               <span className="text-white text-xs">日历</span>
+            </div>
             <input
               type="date"
               value={date ? date.substring(0, 10) : ''}
@@ -100,7 +104,7 @@ const PhotoOverlayContent = ({ photo, role, onSave }: { photo: Photo, role: stri
                      setDate(e.target.value + existingTime);
                  }
               }}
-              className="bg-black/40 text-white rounded p-1 text-xs focus:ring-1 focus:ring-blue-500 outline-none flex-1"
+              className="bg-transparent text-white text-xs focus:outline-none flex-1 [color-scheme:dark]"
             />
             <button type="button" onClick={() => setIsEditing(false)} className="p-1 hover:bg-white/10 rounded text-gray-300">
                <XIcon size={16} />
