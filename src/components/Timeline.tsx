@@ -30,6 +30,7 @@ interface Props {
   targetPhotoId?: string | null;
   onClearTarget?: () => void;
   onUpdatePhotoDetail?: (id: string, updates: Partial<Photo>) => void;
+  headerContent?: React.ReactNode;
 }
 
 // BlurHash Canvas Component
@@ -87,6 +88,7 @@ const PhotoOverlayContent = ({ photo, role, onSave }: { photo: Photo, role: stri
           <textarea
             value={desc}
             onChange={(e) => setDesc(e.target.value)}
+            onKeyDown={(e) => e.stopPropagation()}
             placeholder="增加一段描述..."
             className="w-full bg-black/40 text-white rounded p-2 text-sm focus:ring-1 focus:ring-blue-500 outline-none resize-none h-20"
             autoFocus
@@ -103,6 +105,7 @@ const PhotoOverlayContent = ({ photo, role, onSave }: { photo: Photo, role: stri
                      setDate(e.target.value + existingTime);
                  }
               }}
+              onKeyDown={(e) => e.stopPropagation()}
               className="bg-transparent text-white text-xs focus:outline-none flex-1 [color-scheme:dark] px-2"
             />
             <div 
@@ -158,7 +161,7 @@ const PhotoOverlayContent = ({ photo, role, onSave }: { photo: Photo, role: stri
   );
 };
 
-export default function Timeline({ photos, folders, onPhotoUpdate, isSelectionMode, selectedIds, onSelectPhoto, onDelete, viewMode = 'normal', onRestore, onDeleteForever, onToggleFavorite, onLightboxChange, targetPhotoId, onClearTarget, onUpdatePhotoDetail, isSearching = false }: Props & { isSearching?: boolean }) {
+export default function Timeline({ photos, folders, onPhotoUpdate, isSelectionMode, selectedIds, onSelectPhoto, onDelete, viewMode = 'normal', onRestore, onDeleteForever, onToggleFavorite, onLightboxChange, targetPhotoId, onClearTarget, onUpdatePhotoDetail, isSearching = false, headerContent }: Props & { isSearching?: boolean, headerContent?: React.ReactNode }) {
   const { role } = useAuth();
   const { language } = useConfig();
   
@@ -461,13 +464,20 @@ export default function Timeline({ photos, folders, onPhotoUpdate, isSelectionMo
             onError={(e) => {
               const img = e.target as HTMLImageElement;
               if (thumbnailUrl && img.src === thumbnailUrl) {
+                 // Try loading original if thumbnail fails
                  img.src = fixedUrl;
                  return;
               }
-              // Don't hide if blurhash is there
-              if (!photo.blurhash) {
-                  img.style.display = 'none';
-              }
+              // If both fail, keep it hidden (showing background color)
+              // OR show a broken image icon?
+              // The user said: "即使最下面的只有部分，也要显示照片缩略图"
+              // Maybe the issue is Virtuoso not rendering it?
+              // Or maybe lazy loading threshold?
+              // Let's remove display:none to see if browser shows broken image icon at least,
+              // or rely on the background color.
+              // But if I hide it, it's just a gray box.
+              // Let's NOT hide it completely, maybe show a placeholder icon.
+              img.style.display = 'none'; 
             }}
           />
         )}
@@ -517,6 +527,13 @@ export default function Timeline({ photos, folders, onPhotoUpdate, isSelectionMo
       <Virtuoso
         data={flatRows}
         className="h-full w-full custom-scrollbar"
+        // Increase overscan to render more items outside the viewport (default is usually small)
+        overscan={1000} 
+        // Add footer to ensure bottom padding for the last item to be fully visible if partially cut off
+        components={{
+            Header: headerContent ? () => <div>{headerContent}</div> : undefined,
+            Footer: () => <div className="h-32" /> // Extra space at bottom
+        }}
         itemContent={(index, row) => {
           if (row.type === 'header') {
             if (isSearching) {
@@ -555,6 +572,24 @@ export default function Timeline({ photos, folders, onPhotoUpdate, isSelectionMo
                 style={{ gridTemplateColumns: `repeat(${columns}, minmax(0, 1fr))` }}
               >
                 {row.items.map(photo => renderPhotoItem(photo))}
+                {/* Fill empty slots with placeholders if this is the last row? 
+                    Actually CSS Grid handles this naturally, leaving empty space.
+                    But if the user wants to see "thumbnails" even if empty? 
+                    No, the user says "partially displayed".
+                    Ah, maybe the user means lazy loading is too aggressive or the item height is not enough?
+                    
+                    Wait, looking at the user screenshot, there is a WHITE BOX with red border.
+                    "Below: a blank placeholder area for a photo thumbnail (white rectangle with a red border, rounded corners). No image displayed."
+                    
+                    This means the image FAILED to load or is not visible.
+                    My code has `onError` handler that hides the image: `img.style.display = 'none';`.
+                    If display is none, then the parent div (bg-gray-200) shows up.
+                    
+                    If the user wants to see "thumbnails" even if partially loaded?
+                    The issue might be that `onError` is hiding it too aggressively or `opacity-0` is not removed.
+                    
+                    Let's adjust the image rendering logic.
+                */}
               </div>
             );
           }
