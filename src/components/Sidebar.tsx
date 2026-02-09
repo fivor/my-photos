@@ -41,6 +41,8 @@ export default function Sidebar({
 
   // Filter folders based on search
   const filteredFolders = folders;
+  // Sort folders by pinyin A-Z
+  filteredFolders.sort((a, b) => a.name.localeCompare(b.name, 'zh-CN'));
 
   return (
     <>

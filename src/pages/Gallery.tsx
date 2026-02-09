@@ -678,7 +678,7 @@ export default function Gallery() {
                   value=""
                 >
                   <option value="" disabled>选择相册...</option>
-                  {folders.map(f => (
+                  {folders.slice().sort((a, b) => a.name.localeCompare(b.name, 'zh-CN')).map(f => (
                     <option key={f.id} value={f.id}>{f.name}</option>
                   ))}
                 </select>

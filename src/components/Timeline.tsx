@@ -667,7 +667,7 @@ export default function Timeline({ photos, folders, onPhotoUpdate, isSelectionMo
                               }}
                               value={photoData.folder}
                             >
-                              {folders.map(f => (
+                              {folders.slice().sort((a, b) => a.name.localeCompare(b.name, 'zh-CN')).map(f => (
                                 <option key={f.id} value={f.id} disabled={f.id === photoData.folder}>
                                   {f.name}
                                 </option>

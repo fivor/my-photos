@@ -47,20 +47,44 @@ export function usePhotoData(folderId?: string, viewMode: string = 'normal') {
       // We ignore folderId in fetch, because we want ALL photos to enable fast switching.
       // Unless viewMode is trash, then we fetch trash.
 
-      const res: any = await apiRequest(`/data?${queryParams.toString()}`);
-      
-      setFolders(res.folders || []);
-      setPhotos(res.photos || []);
-      if (res.counts) {
-          setCounts(res.counts);
-      }
-      
-      // Update cache
+      // Try fetching from API first
       try {
-          if (viewMode === 'normal') {
-               localStorage.setItem('gallery_cache', JSON.stringify(res));
+          const res: any = await apiRequest(`/data?${queryParams.toString()}`);
+          
+          // Sort folders alphabetically by pinyin
+          if (res.folders) {
+              res.folders.sort((a: Folder, b: Folder) => a.name.localeCompare(b.name, 'zh-CN'));
           }
-      } catch (e) { console.warn('Cache failed', e); }
+
+          setFolders(res.folders || []);
+          setPhotos(res.photos || []);
+          if (res.counts) {
+              setCounts(res.counts);
+          }
+          
+          // Update cache
+          try {
+              if (viewMode === 'normal') {
+                   localStorage.setItem('gallery_cache', JSON.stringify(res));
+              }
+          } catch (e) { console.warn('Cache failed', e); }
+      } catch (networkError) {
+          // If network fails, fallback to cache
+          console.warn('Network failed, falling back to cache', networkError);
+          const cached = localStorage.getItem('gallery_cache');
+          if (cached) {
+              const data = JSON.parse(cached);
+              // Sort cached folders too
+              if (data.folders) {
+                  data.folders.sort((a: Folder, b: Folder) => a.name.localeCompare(b.name, 'zh-CN'));
+              }
+              setFolders(data.folders || []);
+              setPhotos(data.photos || []);
+              if (data.counts) setCounts(data.counts);
+          } else {
+              throw networkError; // Throw if no cache available
+          }
+      }
 
     } catch (err: any) {
       console.error('Fetch error', err);

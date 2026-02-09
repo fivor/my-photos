@@ -548,7 +548,7 @@ export default function Upload() {
 
           {/* Album List (Grid) */}
           <div className="grid grid-cols-1 gap-2 max-h-[calc(100vh-200px)] overflow-y-auto pr-2 custom-scrollbar">
-            {folders.map(f => (
+            {folders.slice().sort((a, b) => a.name.localeCompare(b.name, 'zh-CN')).map(f => (
               <div 
                 key={f.id}
                 onClick={() => setSelectedFolder(f.id)}
