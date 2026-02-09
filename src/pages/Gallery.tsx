@@ -68,6 +68,8 @@ export default function Gallery() {
   // Derived State
   const displayPhotos = getDisplayPhotos(photos);
   
+  const showMemories = !searchQuery && !folderId && viewMode === 'normal';
+
   // Sidebar State
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [expandedFolders, setExpandedFolders] = useState(true);
@@ -344,14 +346,34 @@ export default function Gallery() {
   // Keyboard Shortcuts
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
-      if (e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement) return;
-
+      // Allow Escape key to work even when focused on inputs (to exit search)
       if (e.key === 'Escape') {
+        // Priority 1: Close Lightbox or Large View (handled by their own components usually, but we guard here to prevent clearing search)
+        if (targetPhotoId || isLightboxOpen) {
+            return;
+        }
+
+        // Priority 2: Exit Search
+        if (searchQuery) {
+           e.preventDefault();
+           setSearchQuery('');
+           setIsSearchExpanded(false);
+           // Blur active element if it's an input
+           if (document.activeElement instanceof HTMLElement) {
+               document.activeElement.blur();
+           }
+           return;
+        }
+ 
+        // Priority 3: Exit Selection Mode
         if (isSelectionMode) {
           setIsSelectionMode(false);
           clearSelection();
+          return;
         }
       }
+
+      if (e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement) return;
 
       if ((e.metaKey || e.ctrlKey) && e.key === 'a') {
         e.preventDefault();
@@ -376,7 +398,7 @@ export default function Gallery() {
 
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [isSelectionMode, selectedIds, displayPhotos, handleBatchDelete, handleToggleFavorite]);
+  }, [isSelectionMode, selectedIds, displayPhotos, handleBatchDelete, handleToggleFavorite, searchQuery, targetPhotoId, isLightboxOpen]);
 
   return (
     <div className="h-screen bg-white dark:bg-gray-900 text-gray-900 dark:text-white flex flex-col transition-colors duration-200 overflow-hidden">
@@ -585,14 +607,6 @@ export default function Gallery() {
                  <MapView photos={allPhotos} />
               ) : (
                  <div className="h-full flex flex-col">
-                    {/* Memories (Only in All Photos view) */}
-                    {!searchQuery && !folderId && viewMode === 'normal' && (
-                       <Memories 
-                         photos={photos} 
-                         onSelectPhoto={(p) => setTargetPhotoId(p.id)} 
-                       />
-                    )}
-                    
                     <Timeline 
                       photos={displayPhotos} 
                       folders={folders} 
@@ -610,6 +624,12 @@ export default function Gallery() {
                       targetPhotoId={targetPhotoId}
                       onClearTarget={() => setTargetPhotoId(null)}
                       isSearching={!!searchQuery}
+                      headerContent={showMemories ? (
+                         <Memories 
+                           photos={photos} 
+                           onSelectPhoto={(p) => setTargetPhotoId(p.id)} 
+                         />
+                      ) : null}
                     />
                  </div>
               )
