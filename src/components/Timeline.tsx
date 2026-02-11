@@ -528,8 +528,9 @@ export default function Timeline({ photos, folders, onPhotoUpdate, isSelectionMo
       {viewMode === 'trash' && (
           <div className="bg-black text-green-400 p-4 font-mono text-xs overflow-auto max-h-40 border-b border-gray-700">
               <p>DEBUG TRASH MODE: Total Photos: {photos.length}</p>
+              <p>Deleted Photos Found: {photos.filter(p => p.deletedAt).length}</p>
               <pre>
-                  {JSON.stringify(photos.slice(0, 2).map(p => ({
+                  {JSON.stringify(photos.filter(p => p.deletedAt).slice(0, 2).map(p => ({
                       id: p.id,
                       deletedAt: p.deletedAt,
                       // @ts-ignore

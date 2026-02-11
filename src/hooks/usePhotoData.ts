@@ -109,10 +109,7 @@ export function usePhotoData(folderId?: string, viewMode: string = 'normal') {
   const filteredPhotos = photos.filter(p => {
       // 1. Trash View
       if (viewMode === 'trash') {
-          // Trust API: If we are in trash mode, and we fetched data from API (which we ensure by skipping cache),
-          // then ALL photos in state are trash photos.
-          // Don't filter by deletedAt property, as backend might not populate it consistently or frontend might misinterpret it.
-          return true;
+          return p.deletedAt; 
       }
       
       // 2. Normal View (Active Photos)
