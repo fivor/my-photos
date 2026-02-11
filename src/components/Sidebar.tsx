@@ -43,7 +43,18 @@ export default function Sidebar({
   const filteredFolders = useMemo(() => {
      // Create a shallow copy to avoid mutating props
      const sorted = [...folders];
-     sorted.sort((a, b) => a.name.localeCompare(b.name, 'zh-CN'));
+     
+     // Debug: Check input and locale
+     // console.log('Sidebar: sorting folders', folders.length, navigator.language);
+     
+     sorted.sort((a, b) => {
+         // Force pinyin sorting for all Chinese characters
+         return a.name.localeCompare(b.name, 'zh-CN', { sensitivity: 'accent' });
+     });
+     
+     // Debug: Check output
+     // console.log('Sidebar: sorted result', sorted.map(f => f.name));
+     
      return sorted;
   }, [folders]);
 
@@ -57,9 +68,6 @@ export default function Sidebar({
         <div className="h-full flex flex-col w-64">
           
           <div className="flex-1 overflow-y-auto p-2 space-y-1 custom-scrollbar">
-            <div className="text-[10px] text-red-500 font-bold px-3 pb-2 text-center select-none">
-                DEBUG: v2026.02.11 (Updated)
-            </div>
 
             <Link 
               to="/favorites"
