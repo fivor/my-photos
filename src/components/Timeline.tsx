@@ -516,22 +516,6 @@ export default function Timeline({ photos, folders, onPhotoUpdate, isSelectionMo
 
   return (
     <div ref={containerRef} className="h-full w-full touch-pan-y">
-      {/* DEBUG: Trash View Data Inspector */}
-      {viewMode === 'trash' && (
-          <div className="bg-black text-green-400 p-4 font-mono text-xs overflow-auto max-h-60 border-b border-gray-700">
-              <p>DEBUG TRASH MODE</p>
-              <p>Total Photos in State: {photos.length}</p>
-              <p>Is Selection Mode: {isSelectionMode ? 'Yes' : 'No'}</p>
-              <pre>
-                  {JSON.stringify(photos.slice(0, 2).map(p => ({
-                      id: p.id,
-                      deletedAt: p.deletedAt,
-                      date: p.date
-                  })), null, 2)}
-              </pre>
-          </div>
-      )}
-
       {photos.length === 0 ? (
         <div className="text-center py-20 text-gray-500">
           <p>No photos found. Upload some photos to get started!</p>
@@ -608,6 +592,7 @@ export default function Timeline({ photos, folders, onPhotoUpdate, isSelectionMo
           }
         }}
       />
+      )}
 
       {/* Lightbox */}
       <PhotoSlider

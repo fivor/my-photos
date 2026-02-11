@@ -24,7 +24,13 @@ export async function handleDataRoutes(request: Request, env: Env, path: string)
         // Clean up expired trash on read (always check or just once? once is fine)
         await db.cleanupExpiredTrashD1(env);
 
-        const metadata = await db.getMetadataFromD1(env);
+        // Parse query params
+        const viewMode = url.searchParams.get('viewMode') || 'normal';
+        const page = parseInt(url.searchParams.get('page') || '1');
+        const pageSize = parseInt(url.searchParams.get('pageSize') || '50');
+        const folderId = url.searchParams.get('folderId') || undefined;
+
+        const metadata = await db.getMetadataFromD1(env, page, pageSize, viewMode, folderId);
         return jsonResponse(metadata);
       }
       
