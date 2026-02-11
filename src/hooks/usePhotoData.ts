@@ -11,6 +11,9 @@ export function usePhotoData(folderId?: string, viewMode: string = 'normal') {
   
   // Cache check
   useEffect(() => {
+    // Only use cache for normal view, because cache only stores normal photos
+    if (viewMode !== 'normal') return;
+
     const cached = localStorage.getItem('gallery_cache');
     if (cached && photos.length === 0) {
       try {
@@ -106,7 +109,11 @@ export function usePhotoData(folderId?: string, viewMode: string = 'normal') {
   const filteredPhotos = photos.filter(p => {
       // 1. Trash View
       if (viewMode === 'trash') {
-          return p.deletedAt; 
+          // Trust the data if we are in trash mode, but ensure we don't show active photos if they leaked in
+          // If deletedAt is missing but we are in trash mode and data came from API, it might be an issue.
+          // Let's rely on existence of deletedAt OR just return true if we assume photos state IS trash photos.
+          // However, to be safe:
+          return p.deletedAt || (p as any).isDeleted; 
       }
       
       // 2. Normal View (Active Photos)
