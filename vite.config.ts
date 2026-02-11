@@ -40,6 +40,11 @@ export default defineConfig({
     }),
     VitePWA({
       registerType: 'autoUpdate',
+      workbox: {
+        skipWaiting: true,
+        clientsClaim: true,
+        cleanupOutdatedCaches: true
+      },
       includeAssets: ['favicon.svg', 'confetti.png'],
       manifest: {
         name: 'Photo Gallery',

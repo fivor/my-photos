@@ -27,6 +27,9 @@ export function usePhotoData(folderId?: string, viewMode: string = 'normal') {
           // So `photos` should be the FULL list.
           
           setPhotos(data.photos);
+          if (data.folders) {
+              data.folders.sort((a: Folder, b: Folder) => a.name.localeCompare(b.name, 'zh-CN'));
+          }
           setFolders(data.folders || []);
           if (data.counts) setCounts(data.counts);
           setLoading(false);
