@@ -109,11 +109,10 @@ export function usePhotoData(folderId?: string, viewMode: string = 'normal') {
   const filteredPhotos = photos.filter(p => {
       // 1. Trash View
       if (viewMode === 'trash') {
-          // Trust the data if we are in trash mode, but ensure we don't show active photos if they leaked in
-          // If deletedAt is missing but we are in trash mode and data came from API, it might be an issue.
-          // Let's rely on existence of deletedAt OR just return true if we assume photos state IS trash photos.
-          // However, to be safe:
-          return p.deletedAt || (p as any).isDeleted; 
+          // Trust API: If we are in trash mode, and we fetched data from API (which we ensure by skipping cache),
+          // then ALL photos in state are trash photos.
+          // Don't filter by deletedAt property, as backend might not populate it consistently or frontend might misinterpret it.
+          return true;
       }
       
       // 2. Normal View (Active Photos)
