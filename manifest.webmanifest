@@ -1,0 +1,1 @@
+{"name":"Photo Gallery","short_name":"Photos","description":"Personal Photo Gallery","start_url":"/","display":"standalone","background_color":"#ffffff","theme_color":"#ffffff","lang":"en","scope":"/","icons":[{"src":"/confetti.png","sizes":"192x192","type":"image/png"},{"src":"/confetti.png","sizes":"512x512","type":"image/png"}]}
