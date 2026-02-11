@@ -62,7 +62,18 @@ export function usePhotoData(folderId?: string, viewMode: string = 'normal') {
               res.folders.sort((a: Folder, b: Folder) => a.name.localeCompare(b.name, 'zh-CN'));
           }
 
-          setFolders(res.folders || []);
+          // Fix: Only update folders in normal view to avoid zero-counts in Trash/Favorites
+          if (viewMode === 'normal') {
+              setFolders(res.folders || []);
+          } else {
+              // If we are in trash/favorites, backend returns folder counts based on filtered photos (which is usually 0).
+              // So we keep the existing folders state (from cache or previous normal view).
+              // Only set if we have nothing.
+              if (folders.length === 0) {
+                  setFolders(res.folders || []);
+              }
+          }
+
           setPhotos(res.photos || []);
           if (res.counts) {
               setCounts(res.counts);
