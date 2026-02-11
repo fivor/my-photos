@@ -524,6 +524,23 @@ export default function Timeline({ photos, folders, onPhotoUpdate, isSelectionMo
 
   return (
     <div ref={containerRef} className="h-full w-full touch-pan-y">
+      {/* DEBUG: Trash View Data Inspector */}
+      {viewMode === 'trash' && (
+          <div className="bg-black text-green-400 p-4 font-mono text-xs overflow-auto max-h-40 border-b border-gray-700">
+              <p>DEBUG TRASH MODE: Total Photos: {photos.length}</p>
+              <pre>
+                  {JSON.stringify(photos.slice(0, 2).map(p => ({
+                      id: p.id,
+                      deletedAt: p.deletedAt,
+                      // @ts-ignore
+                      isDeleted: p.isDeleted,
+                      date: p.date,
+                      folder: p.folder
+                  })), null, 2)}
+              </pre>
+          </div>
+      )}
+
       <Virtuoso
         data={flatRows}
         className="h-full w-full custom-scrollbar"
