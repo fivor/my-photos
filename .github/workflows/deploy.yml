@@ -25,7 +25,11 @@ jobs:
         run: npm ci
 
       - name: Build
-        run: npm run build
+        run: |
+          npm run build
+          cp dist/index.html dist/404.html
+          touch dist/.nojekyll
+          echo "i.fivor.de" > dist/CNAME
         env:
           VITE_API_URL: ${{ secrets.VITE_API_URL }}
 
