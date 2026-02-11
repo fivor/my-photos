@@ -57,8 +57,8 @@ export default function Sidebar({
         <div className="h-full flex flex-col w-64">
           
           <div className="flex-1 overflow-y-auto p-2 space-y-1 custom-scrollbar">
-            <div className="text-[10px] text-gray-300 dark:text-gray-700 px-3 pb-2 text-center opacity-30 select-none">
-                v2026.02.11
+            <div className="text-[10px] text-red-500 font-bold px-3 pb-2 text-center select-none">
+                DEBUG: v2026.02.11 (Updated)
             </div>
 
             <Link 
