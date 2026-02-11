@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useMemo } from 'react';
 import { Link } from 'react-router-dom';
 import { Search, Heart, Folder as FolderIcon, ChevronDown, ChevronRight, Trash2, Map } from 'lucide-react';
 import { Folder } from '../types';
@@ -39,10 +39,13 @@ export default function Sidebar({
 }: SidebarProps) {
   const { t } = useConfig();
 
-  // Filter folders based on search
-  const filteredFolders = folders;
-  // Sort folders by pinyin A-Z
-  filteredFolders.sort((a, b) => a.name.localeCompare(b.name, 'zh-CN'));
+  // Filter and Sort folders
+  const filteredFolders = useMemo(() => {
+     // Create a shallow copy to avoid mutating props
+     const sorted = [...folders];
+     sorted.sort((a, b) => a.name.localeCompare(b.name, 'zh-CN'));
+     return sorted;
+  }, [folders]);
 
   return (
     <>
