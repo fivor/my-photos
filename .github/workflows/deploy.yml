@@ -31,7 +31,8 @@ jobs:
           touch dist/.nojekyll
           echo "i.fivor.de" > dist/CNAME
         env:
-          VITE_API_URL: ${{ secrets.VITE_API_URL }}
+          # Force absolute API URL for GitHub Pages
+          VITE_API_BASE: https://api.fivor.de/api
 
       - name: Deploy
         uses: JamesIves/github-pages-deploy-action@v4
