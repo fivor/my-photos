@@ -109,7 +109,8 @@ export function usePhotoData(folderId?: string, viewMode: string = 'normal') {
   const filteredPhotos = photos.filter(p => {
       // 1. Trash View
       if (viewMode === 'trash') {
-          return p.deletedAt; 
+          // DEBUG: Show all photos to inspect why deletedAt is missing
+          return true; 
       }
       
       // 2. Normal View (Active Photos)
