@@ -57,6 +57,10 @@ export default function Sidebar({
         <div className="h-full flex flex-col w-64">
           
           <div className="flex-1 overflow-y-auto p-2 space-y-1 custom-scrollbar">
+            <div className="text-[10px] text-gray-300 dark:text-gray-700 px-3 pb-2 text-center opacity-30 select-none">
+                v2026.02.11
+            </div>
+
             <Link 
               to="/favorites"
               onClick={() => setIsOpen(false)}
