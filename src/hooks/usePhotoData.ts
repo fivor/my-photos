@@ -11,31 +11,27 @@ export function usePhotoData(folderId?: string, viewMode: string = 'normal') {
   
   // Cache check
   useEffect(() => {
-    // Only use cache for normal view, because cache only stores normal photos
-    if (viewMode !== 'normal') return;
+    // We can use cache for folders and counts even in non-normal view.
+    // For photos, if viewMode is not normal, we should be careful.
+    // But since `fetchData` will overwrite it anyway, loading cache first improves perceived performance.
 
     const cached = localStorage.getItem('gallery_cache');
     if (cached && photos.length === 0) {
       try {
         const data = JSON.parse(cached);
-        if (data && Array.isArray(data.photos)) {
-          // If we have cached data, we can use it immediately
-          // But we need to filter it if we are in a specific view
-          // The cache stores ALL photos usually
-          
-          // Let's just set the raw data and let the filtering logic below handle it
-          // Wait, `setPhotos` here sets the state.
-          // If we are in "Trash" view, we shouldn't show all photos.
-          // The previous logic filtered `filteredPhotos` from `photos`.
-          // So `photos` should be the FULL list.
-          
-          setPhotos(data.photos);
+        if (data) {
+          // Always restore folders and counts
           if (data.folders) {
               data.folders.sort((a: Folder, b: Folder) => a.name.localeCompare(b.name, 'zh-CN'));
+              setFolders(data.folders);
           }
-          setFolders(data.folders || []);
           if (data.counts) setCounts(data.counts);
-          setLoading(false);
+
+          // Only restore photos if in normal view, because cache has normal photos
+          if (viewMode === 'normal' && Array.isArray(data.photos)) {
+              setPhotos(data.photos);
+              setLoading(false);
+          }
         }
       } catch (e) {
         console.error('Cache parse error', e);
@@ -62,17 +58,8 @@ export function usePhotoData(folderId?: string, viewMode: string = 'normal') {
               res.folders.sort((a: Folder, b: Folder) => a.name.localeCompare(b.name, 'zh-CN'));
           }
 
-          // Fix: Only update folders in normal view to avoid zero-counts in Trash/Favorites
-          if (viewMode === 'normal') {
-              setFolders(res.folders || []);
-          } else {
-              // If we are in trash/favorites, backend returns folder counts based on filtered photos (which is usually 0).
-              // So we keep the existing folders state (from cache or previous normal view).
-              // Only set if we have nothing.
-              if (folders.length === 0) {
-                  setFolders(res.folders || []);
-              }
-          }
+          // Backend now returns correct folder counts regardless of viewMode, so we can always update.
+          setFolders(res.folders || []);
 
           setPhotos(res.photos || []);
           if (res.counts) {

@@ -48,7 +48,9 @@ export async function getMetadataFromD1(env: Env, page?: number, pageSize?: numb
     // Let's return them for compatibility.
     env.DB.prepare('SELECT COUNT(*) as count FROM photos WHERE deleted_at IS NULL').first(), // Global Total
     env.DB.prepare('SELECT COUNT(*) as count FROM photos WHERE deleted_at IS NOT NULL').first(), // Trash
-    env.DB.prepare('SELECT COUNT(*) as count FROM photos WHERE is_favorite = 1 AND deleted_at IS NULL').first() // Favorites
+    env.DB.prepare('SELECT COUNT(*) as count FROM photos WHERE is_favorite = 1 AND deleted_at IS NULL').first(), // Favorites
+    // Add separate query for folder counts (all active photos) to ensure correct counts regardless of viewMode
+    env.DB.prepare('SELECT folder_id, COUNT(*) as count FROM photos WHERE deleted_at IS NULL GROUP BY folder_id').all()
   );
 
   const results = await Promise.all(promises);
@@ -61,6 +63,7 @@ export async function getMetadataFromD1(env: Env, page?: number, pageSize?: numb
   const globalCountResult = results[5];
   const trashCountResult = results[6];
   const favCountResult = results[7];
+  const folderCountResults = results[8];
 
   // Process Config
   const config: any = {};
@@ -96,13 +99,15 @@ export async function getMetadataFromD1(env: Env, page?: number, pageSize?: numb
     originalSize: p.original_size
   })) : [];
 
-  // Calculate folder counts from the photos list (since we have all of them)
+  // Calculate folder counts from DB results (not from filtered photos list)
   const folderCountMap: Record<string, number> = {};
-  photos.forEach(p => {
-      if (p.folder) {
-          folderCountMap[p.folder] = (folderCountMap[p.folder] || 0) + 1;
-      }
-  });
+  if (folderCountResults.results) {
+      folderCountResults.results.forEach((row: any) => {
+          if (row.folder_id) {
+              folderCountMap[row.folder_id] = row.count;
+          }
+      });
+  }
 
   // Process Folders
   const folders: any[] = folderResults.results ? folderResults.results.map((f: any) => ({
