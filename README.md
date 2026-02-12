@@ -28,6 +28,9 @@
     *   **虚拟滚动**: 采用 Virtualized List 技术，轻松流畅展示数万张照片，底部加载更丝滑。
     *   **智能交互**: “那年今日”模块随页面自然滚动；ESC 键智能退出搜索/多选/大图模式。
     *   **键盘支持**: 优化输入体验，编辑描述时左右键移动光标，非输入状态下切换照片。
+*   **有序管理**:
+    *   **A-Z 排序**: 侧边栏相册列表自动按中文拼音 A-Z 排序，找相册更方便。
+    *   **准确计数**: 无论在什么视图（主页、收藏、垃圾桶），相册计数始终保持准确，不会归零。
 *   **地图模式**: 自动解析 Exif GPS 信息，在地图上展示你的足迹。
 *   **安全隐私**: 
     *   **分级权限**: 管理员拥有完全控制权，访客只能查看被授权的文件夹。
@@ -106,15 +109,11 @@
     *   添加 `VITE_API_BASE`: `https://api.yourdomain.com`
 4.  点击部署。
 
-#### 方案 C: GitHub Pages
-1.  在仓库 Settings -> Pages 中选择 Source 为 `gh-pages` 分支。
-2.  修改 `.github/workflows/deploy.yml` (如果使用 Action) 或手动构建：
-    ```bash
-    # 本地构建并推送
-    export VITE_API_BASE=https://api.yourdomain.com
-    npm run build
-    npm run deploy # 自动推送到 gh-pages 分支
-    ```
+#### 方案 C: GitHub Pages (自动化部署)
+本项目已配置 GitHub Actions 自动部署流程 (`.github/workflows/deploy.yml`)。
+1.  在仓库 **Settings -> Pages** 中选择 Source 为 `gh-pages` 分支。
+2.  每次推送到 `main` 分支，GitHub Actions 会自动构建并部署到 `gh-pages` 分支。
+3.  **配置 API 地址**: 默认配置已硬编码为 `https://api.fivor.de/api`。如需修改，请编辑 `.github/workflows/deploy.yml` 中的 `VITE_API_BASE` 环境变量。
 
 ### 🔄 数据同步原理
 由于所有前端部署（Vercel/CF Pages/GH Pages）都指向**同一个 Cloudflare Worker 后端**（通过 `VITE_API_BASE` 配置），因此：
